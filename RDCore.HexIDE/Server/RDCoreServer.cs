@@ -85,7 +85,7 @@ internal sealed class RDCoreServer(IHexIdeHost host, PlatformSource platform, IU
         {
             ReleaseLease();
             Failures.Record(ex);
-            await prompts.TellAsync(Strings.PlatformRootUnusable(choice.Root, Unusable(ex)));
+            await prompts.TellAsync(Strings.PlatformRootUnusable(choice.Root, Failures.Unusable(ex)));
             return;
         }
 
@@ -114,18 +114,6 @@ internal sealed class RDCoreServer(IHexIdeHost host, PlatformSource platform, IU
             await prompts.TellAsync(Strings.ServerNotRegistered(ex.Message));
         }
     }
-
-    // Why the launch couldn't be prepared from the platform's root, as RDCoreLanguageServerLaunch.Prepare says, in the user's
-    // language.
-    private static string Unusable(Exception failure) => failure switch
-    {
-        DirectoryNotFoundException => Strings.FolderMissing,
-        FileNotFoundException missing when string.Equals(Path.GetFileName(missing.FileName), "rdcore.json", StringComparison.OrdinalIgnoreCase)
-            => Strings.NoManifest,
-        FileNotFoundException => Strings.LanguageServerMissing,
-        InvalidDataException => Strings.ManifestUnusable,
-        _ => Failures.Reason(failure),
-    };
 
     // A version that isn't whole any more is deployed again without the lease, which would keep its folder from being
     // replaced: nothing runs from it before this start. It is held again once it is back, while the server is still registered.

@@ -33,6 +33,20 @@ internal static class Failures
         _ => Strings.UnexpectedFailure(failure.GetType().Name),
     };
 
+    /// <summary>
+    /// Why a launch couldn't be prepared from a platform's root, as <c>RDCoreLanguageServerLaunch.Prepare</c> and
+    /// <c>RDCoreDebugAdapterLaunch.Prepare</c> say it, to follow a colon.
+    /// </summary>
+    public static string Unusable(Exception failure) => failure switch
+    {
+        DirectoryNotFoundException => Strings.FolderMissing,
+        FileNotFoundException missing when string.Equals(Path.GetFileName(missing.FileName), "rdcore.json", StringComparison.OrdinalIgnoreCase)
+            => Strings.NoManifest,
+        FileNotFoundException => Strings.LanguageServerMissing,
+        InvalidDataException => Strings.ManifestUnusable,
+        _ => Reason(failure),
+    };
+
     /// <summary>Traces <paramref name="failure"/> whole, when the user is told a reason <see cref="Describe"/> didn't give.</summary>
     public static void Record(Exception failure) => Trace.TraceWarning($"RDCore for HexIDE: {failure}");
 
