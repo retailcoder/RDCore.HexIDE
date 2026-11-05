@@ -1,5 +1,6 @@
 using HexIDE.Addins;
 using RDCore.HexIDE.Projects;
+using RDCore.HexIDE.Resources;
 
 namespace RDCore.HexIDE.Tests;
 
@@ -7,6 +8,7 @@ namespace RDCore.HexIDE.Tests;
 public sealed class RDProjectTests : IDisposable
 {
     private readonly string root = Path.Combine(Path.GetTempPath(), "rdcore-rdproj-" + Guid.NewGuid().ToString("N"));
+    private readonly List<string> told = [];
 
     public RDProjectTests()
     {
@@ -45,7 +47,7 @@ public sealed class RDProjectTests : IDisposable
     // A watcher of the project as it is now, which the test tells of the file system's reports itself.
     private RDProjectWatcher Following(Changes changes, TimeProvider time)
     {
-        var watcher = new RDProjectWatcher(ProjectFile, changes, time);
+        var watcher = new RDProjectWatcher(ProjectFile, changes, time, told.Add);
         watcher.Begin(RDProject.Read(ProjectFile));
         return watcher;
     }
@@ -239,7 +241,7 @@ public sealed class RDProjectTests : IDisposable
     {
         WriteProject("""["src/Main.bas"]""", otherFiles: "[]");
         var time = new ManualTime();
-        using var type = new RDCoreProjectType(time);
+        using var type = new RDCoreProjectType(new Prompts(), time);
         var changes = new Changes();
 
         var content = await type.Type.OpenAsync(ProjectFile, changes, TestContext.CancellationToken);
@@ -264,7 +266,7 @@ public sealed class RDProjectTests : IDisposable
     public async Task A_project_HexIDE_has_closed_already_is_not_followed()
     {
         WriteProject("""["src/Main.bas"]""", otherFiles: "[]");
-        using var type = new RDCoreProjectType(new ManualTime());
+        using var type = new RDCoreProjectType(new Prompts(), new ManualTime());
         var changes = new Changes();
         changes.Close();
 
@@ -279,7 +281,7 @@ public sealed class RDProjectTests : IDisposable
         WriteProject("""["src/Main.bas"]""", otherFiles: "[]");
         var changes = new Changes();
         var time = new ManualTime();
-        using var watcher = new RDProjectWatcher(ProjectFile, changes, time);
+        using var watcher = new RDProjectWatcher(ProjectFile, changes, time, told.Add);
         var opened = RDProject.Read(ProjectFile);
         Write("src/Helpers.bas", "Attribute VB_Name = \"Helpers\"\r\n");
         WriteProject("""["src/Main.bas", "src/Helpers.bas"]""", otherFiles: "[]");
@@ -314,6 +316,113 @@ public sealed class RDProjectTests : IDisposable
         time.Advance(step);
 
         CollectionAssert.AreEqual(new[] { $"added {Full("src/Helpers.bas")} StandardModule" }, changes.Calls);
+    }
+
+    // Rereads until the watcher gives up on a file it can't read.
+    private static void Exhaust(ManualTime time)
+    {
+        for (var attempt = 0; attempt < 5 && time.IsArmed; attempt++)
+        {
+            time.Advance(RDProjectWatcher.Settle);
+        }
+    }
+
+    [TestMethod]
+    public void A_project_file_that_is_gone_is_told_to_the_user_once_until_it_is_back()
+    {
+        WriteProject("""["src/Main.bas"]""", otherFiles: "[]");
+        var changes = new Changes();
+        var time = new ManualTime();
+        using var watcher = Following(changes, time);
+        var written = File.ReadAllText(ProjectFile);
+        File.Delete(ProjectFile);
+
+        watcher.Noticed(ProjectFile);
+        Exhaust(time);
+        watcher.Noticed(ProjectFile);
+        Exhaust(time);
+
+        CollectionAssert.AreEqual(new[] { Strings.ProjectFileGone(ProjectFile) }, told);
+        File.WriteAllText(ProjectFile, written);
+        watcher.Noticed(ProjectFile);
+        time.Advance(RDProjectWatcher.Settle);
+        File.Delete(ProjectFile);
+        watcher.Noticed(ProjectFile);
+        Exhaust(time);
+        Assert.AreEqual(2, told.Count, "back, then gone again");
+        Assert.AreEqual(0, changes.Calls.Count);
+    }
+
+    [TestMethod]
+    public void A_project_file_that_can_t_be_read_after_it_changed_is_told_to_the_user()
+    {
+        WriteProject("""["src/Main.bas"]""", otherFiles: "[]");
+        var time = new ManualTime();
+        using var watcher = Following(new Changes(), time);
+        File.WriteAllText(ProjectFile, "Type=Exe\r\n");
+
+        watcher.Noticed(ProjectFile);
+        Exhaust(time);
+
+        CollectionAssert.AreEqual(new[] { Strings.ProjectFileUnreadable(ProjectFile) }, told);
+    }
+
+    [TestMethod]
+    public void A_project_whose_folder_was_moved_is_told_to_the_user_as_gone()
+    {
+        WriteProject("""["src/Main.bas"]""", otherFiles: "[]");
+        var time = new ManualTime();
+        using var watcher = Following(new Changes(), time);
+        var moved = root + "-moved";
+        Directory.Move(root, moved);
+        try
+        {
+            // What a rename of the folder, reported by its parent's watcher, does.
+            watcher.Schedule();
+            Exhaust(time);
+        }
+        finally
+        {
+            Directory.Move(moved, root);
+        }
+
+        CollectionAssert.AreEqual(new[] { Strings.ProjectFileGone(ProjectFile) }, told);
+    }
+
+    [TestMethod]
+    public void Changes_the_file_system_lost_track_of_are_found_by_reading_the_project_again()
+    {
+        WriteProject("""["src/Main.bas"]""", otherFiles: "[]");
+        var changes = new Changes();
+        var time = new ManualTime();
+        using var watcher = Following(changes, time);
+        Write("src/Helpers.bas", "Attribute VB_Name = \"Helpers\"\r\n");
+        WriteProject("""["src/Main.bas", "src/Helpers.bas"]""", otherFiles: "[]");
+
+        watcher.Lost(new InternalBufferOverflowException());
+        time.Advance(RDProjectWatcher.Settle);
+
+        CollectionAssert.AreEqual(new[] { $"added {Full("src/Helpers.bas")} StandardModule" }, changes.Calls);
+        Assert.AreEqual(0, told.Count);
+    }
+
+    [TestMethod]
+    public void A_module_written_after_the_project_lists_it_is_read_when_it_appears()
+    {
+        WriteProject("""["src/Main.bas", "src/Classes/Late.cls"]""");
+        var changes = new Changes();
+        var time = new ManualTime();
+        using var watcher = Following(changes, time);
+
+        watcher.Noticed(Full("README.md"));
+        Assert.IsFalse(time.IsArmed, "a file the project has read already changes nothing");
+        Write("src/Classes/Late.cls", "VERSION 1.0 CLASS\r\nAttribute VB_Name = \"Late\"\r\n");
+        watcher.Noticed(Full("src/Classes/Late.cls"));
+        time.Advance(RDProjectWatcher.Settle);
+
+        CollectionAssert.AreEqual(
+            new[] { $"removed {Full("src/Classes/Late.cls")}", $"added {Full("src/Classes/Late.cls")} ClassModule" },
+            changes.Calls);
     }
 
     [TestMethod]

@@ -23,15 +23,15 @@ public sealed class RDCoreAddin : IAddin
     public void Initialize(IHexIdeHost host)
     {
         this.host = host;
+        var prompts = new AvaloniaPrompts();
         // HexIDE opens a .rdproj through the add-in, as a project whose file RDCore's language server writes.
-        projectType = new RDCoreProjectType();
+        projectType = new RDCoreProjectType(prompts);
         projectTypeRegistration = host.RegisterProjectType(projectType.Type);
 
         var settings = AddinSettings.Load(AddinSettings.DefaultPath);
         http = new HttpClient();
         var installer = new PlatformInstaller.PlatformInstaller(
             new PlatformInstallerOptions { Root = PlatformInstallerOptions.DefaultRoot, Channel = settings.EffectiveChannel }, http);
-        var prompts = new AvaloniaPrompts();
         server = new RDCoreServer(host, new PlatformSource(settings, installer, prompts), prompts);
 
         host.Events.ProjectLoaded += OnProjectLoaded;

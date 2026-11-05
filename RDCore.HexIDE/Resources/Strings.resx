@@ -83,4 +83,10 @@ Download RDCore {0} now? It is about {1}, from {2}, and goes in {3}.</value>
   <data name="ServerNotRegistered" xml:space="preserve">
     <value>HexIDE didn't take RDCore's language server: {0}</value>
   </data>
+  <data name="ProjectFileGone" xml:space="preserve">
+    <value>{0} is gone, so HexIDE won't show changes to the project's members until it is back.</value>
+  </data>
+  <data name="ProjectFileUnreadable" xml:space="preserve">
+    <value>RDCore couldn't read {0} after it changed, so HexIDE may not show the project's latest members. It will be read again when it next changes.</value>
+  </data>
 </root>

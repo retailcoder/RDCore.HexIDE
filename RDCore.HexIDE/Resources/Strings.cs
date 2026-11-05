@@ -66,6 +66,12 @@ internal static class Strings
     /// <summary>{0}: why.</summary>
     public static string ServerNotRegistered(string reason) => Format(nameof(ServerNotRegistered), reason);
 
+    /// <summary>{0}: the project file.</summary>
+    public static string ProjectFileGone(string path) => Format(nameof(ProjectFileGone), path);
+
+    /// <summary>{0}: the project file.</summary>
+    public static string ProjectFileUnreadable(string path) => Format(nameof(ProjectFileUnreadable), path);
+
     /// <summary>{0}: a size in megabytes.</summary>
     public static string Megabytes(double megabytes) => Format(nameof(Megabytes), megabytes);
 }

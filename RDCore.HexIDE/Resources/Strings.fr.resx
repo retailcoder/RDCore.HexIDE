@@ -83,4 +83,10 @@ Télécharger RDCore {0} maintenant? Le téléchargement fait environ {1}, provi
   <data name="ServerNotRegistered" xml:space="preserve">
     <value>HexIDE n'a pas accepté le serveur de langage de RDCore : {0}</value>
   </data>
+  <data name="ProjectFileGone" xml:space="preserve">
+    <value>{0} a disparu : HexIDE ne montrera pas les changements aux membres du projet tant qu'il ne sera pas revenu.</value>
+  </data>
+  <data name="ProjectFileUnreadable" xml:space="preserve">
+    <value>RDCore n'a pas pu lire {0} après son changement : HexIDE pourrait ne pas montrer les derniers membres du projet. Il sera relu à son prochain changement.</value>
+  </data>
 </root>

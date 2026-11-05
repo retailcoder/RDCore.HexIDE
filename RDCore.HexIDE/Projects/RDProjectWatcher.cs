@@ -1,6 +1,8 @@
 using System.Collections.Concurrent;
 using System.Diagnostics;
 using HexIDE.Addins;
+using RDCore.HexIDE.Platform;
+using RDCore.HexIDE.Resources;
 
 namespace RDCore.HexIDE.Projects;
 
@@ -23,22 +25,27 @@ internal sealed class RDProjectWatcher : IDisposable
     private readonly string path;
     private readonly IAddinProjectChanges changes;
     private readonly TimeProvider time;
+    private readonly Action<string> tell;
     private readonly ITimer settle;
-    private FileSystemWatcher? watcher;
+    private FileSystemWatcher? files;
+    private FileSystemWatcher? folder;
     private CancellationTokenRegistration closed;
     private RDProject? last;
     private DateTimeOffset? waitingSince;
     private int attempt;
+    private bool told;
     private bool disposed;
 
     /// <param name="path">The project file.</param>
     /// <param name="changes">Where HexIDE takes the changes.</param>
     /// <param name="time">The clock a write settles by.</param>
-    public RDProjectWatcher(string path, IAddinProjectChanges changes, TimeProvider time)
+    /// <param name="tell">Tells the user what they need to know: that the file is gone, or can't be read.</param>
+    public RDProjectWatcher(string path, IAddinProjectChanges changes, TimeProvider time, Action<string> tell)
     {
         this.path = Path.GetFullPath(path);
         this.changes = changes;
         this.time = time;
+        this.tell = tell;
         settle = time.CreateTimer(_ => Reread(), null, Timeout.InfiniteTimeSpan, Timeout.InfiniteTimeSpan);
     }
 
@@ -51,25 +58,75 @@ internal sealed class RDProjectWatcher : IDisposable
     /// </summary>
     public void Start()
     {
-        var files = new FileSystemWatcher(Path.GetDirectoryName(path)!, Path.GetFileName(path))
+        var root = Path.GetDirectoryName(path)!;
+        // The whole folder: the project file, and the modules it lists before they are written.
+        var below = new FileSystemWatcher(root)
         {
-            NotifyFilter = NotifyFilters.LastWrite | NotifyFilters.FileName | NotifyFilters.Size | NotifyFilters.CreationTime,
+            IncludeSubdirectories = true,
+            InternalBufferSize = 64 * 1024,
+            NotifyFilter = NotifyFilters.FileName | NotifyFilters.DirectoryName | NotifyFilters.LastWrite | NotifyFilters.Size
+                | NotifyFilters.CreationTime,
         };
-        files.Changed += (_, _) => Schedule();
-        files.Created += (_, _) => Schedule();
-        files.Renamed += (_, _) => Schedule();
+        below.Changed += (_, e) => Noticed(e.FullPath);
+        below.Created += (_, e) => Noticed(e.FullPath);
+        below.Deleted += (_, e) => Noticed(e.FullPath);
+        below.Renamed += (_, e) =>
+        {
+            Noticed(e.OldFullPath);
+            Noticed(e.FullPath);
+        };
+        below.Error += (_, e) => Lost(e.GetException());
+        // The folder itself, which a rename or a delete takes the project file away with.
+        var around = Path.GetDirectoryName(root) is { } parent
+            ? new FileSystemWatcher(parent, Path.GetFileName(root)) { NotifyFilter = NotifyFilters.DirectoryName }
+            : null;
+        if (around is not null)
+        {
+            around.Renamed += (_, _) => Schedule();
+            around.Deleted += (_, _) => Schedule();
+        }
+
         lock (gate)
         {
             if (disposed)
             {
-                files.Dispose();
+                below.Dispose();
+                around?.Dispose();
                 return;
             }
 
-            watcher = files;
+            files = below;
+            folder = around;
         }
-        files.EnableRaisingEvents = true;
+        below.EnableRaisingEvents = true;
+        if (around is not null)
+        {
+            around.EnableRaisingEvents = true;
+        }
         closed = changes.Closed.Register(Dispose);
+    }
+
+    /// <summary>
+    /// What the file system's report of a change to <paramref name="changed"/> does: rereads the project when that is the
+    /// project file, or a module the project lists that couldn't be read when it last was.
+    /// </summary>
+    internal void Noticed(string changed)
+    {
+        lock (gate)
+        {
+            if (RDProject.PathComparer.Equals(changed, path)
+                || last?.Members.Any(member => member.Digest is null && RDProject.PathComparer.Equals(member.Path, changed)) == true)
+            {
+                Schedule();
+            }
+        }
+    }
+
+    /// <summary>What the file system's losing its reports does: the reread finds whatever they said.</summary>
+    internal void Lost(Exception? error)
+    {
+        Trace.TraceWarning($"RDCore for HexIDE missed changes in the folder of {path}, and reads it again: {error?.Message}");
+        Schedule();
     }
 
     /// <summary>The project as it was first read, which the changes after it are told against.</summary>
@@ -104,57 +161,84 @@ internal sealed class RDProjectWatcher : IDisposable
     /// <summary>Reads the project file again and reports how it differs from the last read.</summary>
     /// <remarks>
     /// Nothing escapes it: it runs on a timer's thread, where an exception would end HexIDE. A change it fails to report is
-    /// traced, and the watcher goes on from what it read.
+    /// traced, and the watcher goes on from what it read. A file it can't read after a few attempts, or that is gone, is told
+    /// to the user once, until it is read again.
     /// </remarks>
     internal void Reread()
     {
+        string? message;
         lock (gate)
         {
-            if (disposed)
-            {
-                return;
-            }
+            message = RereadLocked();
+        }
 
-            // This read covers every write before it.
-            waitingSince = null;
-            if (last is null)
-            {
-                // The first read is still going: what it finds is what this would have, so the reread waits for it.
-                settle.Change(Settle, Timeout.InfiniteTimeSpan);
-                return;
-            }
-
+        if (message is not null)
+        {
             try
             {
-                RDProject now;
-                try
-                {
-                    now = RDProject.Read(path);
-                }
-                catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidDataException)
-                {
-                    if (++attempt < Attempts)
-                    {
-                        settle.Change(Settle, Timeout.InfiniteTimeSpan);
-                    }
-                    else
-                    {
-                        attempt = 0;
-                        Trace.TraceWarning($"RDCore for HexIDE couldn't read {path} after it changed: {ex.Message}");
-                    }
-                    return;
-                }
-                attempt = 0;
-                // What HexIDE was told stands even when it throws partway, so the next change isn't reported twice.
-                var before = last;
-                last = now;
-                RDProjectChanges.Report(before, now, changes);
+                tell(message);
             }
             catch (Exception ex)
             {
-                Trace.TraceError($"RDCore for HexIDE couldn't report a change to {path}: {ex}");
+                Trace.TraceError($"RDCore for HexIDE couldn't tell the user \"{message}\": {ex}");
             }
         }
+    }
+
+    // What to tell the user, if anything.
+    private string? RereadLocked()
+    {
+        if (disposed)
+        {
+            return null;
+        }
+
+        // This read covers every write before it.
+        waitingSince = null;
+        if (last is null)
+        {
+            // The first read is still going: what it finds is what this would have, so the reread waits for it.
+            settle.Change(Settle, Timeout.InfiniteTimeSpan);
+            return null;
+        }
+
+        try
+        {
+            RDProject now;
+            try
+            {
+                now = RDProject.Read(path);
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidDataException)
+            {
+                if (++attempt < Attempts)
+                {
+                    settle.Change(Settle, Timeout.InfiniteTimeSpan);
+                    return null;
+                }
+
+                attempt = 0;
+                Trace.TraceWarning($"RDCore for HexIDE couldn't read {path} after it changed: {ex.Message}");
+                if (told)
+                {
+                    return null;
+                }
+
+                told = true;
+                return File.Exists(path) ? Strings.ProjectFileUnreadable(path) : Strings.ProjectFileGone(path);
+            }
+            attempt = 0;
+            told = false;
+            // What HexIDE was told stands even when it throws partway, so the next change isn't reported twice.
+            var before = last;
+            last = now;
+            RDProjectChanges.Report(before, now, changes);
+        }
+        catch (Exception ex)
+        {
+            Trace.TraceError($"RDCore for HexIDE couldn't report a change to {path}: {ex}");
+        }
+        return null;
     }
 
     public void Dispose()
@@ -168,7 +252,8 @@ internal sealed class RDProjectWatcher : IDisposable
 
             disposed = true;
         }
-        watcher?.Dispose();
+        files?.Dispose();
+        folder?.Dispose();
         settle.Dispose();
         closed.Dispose();
         Stopped?.Invoke();
@@ -230,11 +315,17 @@ internal static class RDProjectChanges
 /// The project type HexIDE opens <c>.rdproj</c> files with, and the watchers of the projects it opened, which go with the
 /// add-in.
 /// </summary>
+/// <param name="prompts">What tells the user that a project's file is gone, or can't be read.</param>
 /// <param name="time">The clock its watchers settle writes by; the system's when null.</param>
-internal sealed class RDCoreProjectType(TimeProvider? time = null) : IDisposable
+internal sealed class RDCoreProjectType(IUserPrompts prompts, TimeProvider? time = null) : IDisposable
 {
     private readonly ConcurrentDictionary<RDProjectWatcher, byte> watchers = new();
     private readonly TimeProvider time = time ?? TimeProvider.System;
+
+    // The watcher tells from its timer's thread and doesn't wait for the user, so a failure to show it is traced here.
+    private void Tell(string message) => prompts.TellAsync(message).ContinueWith(
+        failed => Trace.TraceError($"RDCore for HexIDE couldn't tell the user \"{message}\": {failed.Exception}"),
+        CancellationToken.None, TaskContinuationOptions.OnlyOnFaulted, TaskScheduler.Default);
 
     /// <summary>What the Open Project dialog calls the files.</summary>
     public const string Title = "RDCore projects";
@@ -245,7 +336,7 @@ internal sealed class RDCoreProjectType(TimeProvider? time = null) : IDisposable
         FileNames = [RDCore.SDK.Workspace.ProjectFile.FileName],
         OpenAsync = (path, changes, cancellationToken) => Task.Run(() =>
         {
-            var watcher = new RDProjectWatcher(path, changes, time);
+            var watcher = new RDProjectWatcher(path, changes, time, Tell);
             watchers[watcher] = 0;
             watcher.Stopped += () => watchers.TryRemove(watcher, out _);
             try
