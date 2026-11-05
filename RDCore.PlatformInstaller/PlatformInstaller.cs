@@ -89,6 +89,11 @@ public sealed class PlatformInstaller
     /// Deploys <paramref name="release"/> and makes it the platform in use. A version deployed already, by this process or
     /// another, is made current without a download.
     /// </summary>
+    /// <remarks>
+    /// A version older than the one in use is deployed beside it but not made current, so that whoever asked for it, as a server
+    /// whose launch names it does, has it without taking the newer one from anyone else. It is kept, until an installation
+    /// after this one finds it unused.
+    /// </remarks>
     /// <exception cref="PlatformInstallException">
     /// The download doesn't match the release's checksums, is bigger than it should be, or isn't a platform. Nothing is
     /// deployed, and the platform in use stays as it was.
@@ -110,8 +115,12 @@ public sealed class PlatformInstaller
             progress?.Report(new InstallProgress(InstallStage.Deploying));
         }
 
-        MakeCurrent(release.Version);
-        RemoveOldVersions();
+        if (Current is not { } current || current.Version.CompareTo(release.Version) <= 0)
+        {
+            MakeCurrent(release.Version);
+        }
+
+        RemoveOldVersions(keep: release.Version);
         return new InstalledPlatform(release.Version, root);
     }
 
@@ -306,9 +315,10 @@ public sealed class PlatformInstaller
         File.Move(temporary, path, overwrite: true);
     }
 
-    // Every version but the current one and the one before it, each whole: renamed out of the way first, which fails while
-    // a process runs from it, and only then deleted. One that can't be renamed is left as it is, for a later installation.
-    private void RemoveOldVersions()
+    // Every version but the current one, the one before it and the one just installed, each whole: renamed out of the way
+    // first, which fails while a process runs from it, and only then deleted. One that can't be renamed is left as it is, for a
+    // later installation.
+    private void RemoveOldVersions(PlatformVersion keep)
     {
         var state = ReadState();
         var versions = Path.Combine(options.Root, VersionsFolder);
@@ -322,7 +332,7 @@ public sealed class PlatformInstaller
                 continue;
             }
 
-            if (name == state.Current || name == state.Previous || !PlatformVersion.TryParse(name, out _))
+            if (name == state.Current || name == state.Previous || name == keep.Text || !PlatformVersion.TryParse(name, out _))
             {
                 continue;
             }

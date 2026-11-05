@@ -227,6 +227,27 @@ public sealed class PlatformInstallerTests : IDisposable
         CollectionAssert.AreEqual(new[] { "0.2.0", "0.3.0" }, Versions());
     }
 
+    [TestMethod]
+    public async Task An_older_version_installed_again_is_kept_beside_the_one_in_use_which_stays_in_use()
+    {
+        await InstallLatest(Installer(new FakeGitHub().Release("v0.1.0")));
+        await InstallLatest(Installer(new FakeGitHub().Release("v0.2.0")));
+        await InstallLatest(Installer(new FakeGitHub().Release("v0.3.0")));
+        var installer = Installer(new FakeGitHub().Release("v0.1.0").Release("v0.3.0"));
+        var older = await installer.Feed.FindAsync(PlatformVersion.Parse("0.1.0"), TestContext.CancellationToken);
+        Assert.IsNotNull(older);
+
+        // As a server whose launch names 0.1.0 has it deployed again.
+        var installed = await installer.InstallAsync(older, null, TestContext.CancellationToken);
+
+        Assert.AreEqual("0.3.0", installer.Current?.Version.Text);
+        Assert.IsTrue(File.Exists(installed.Manifest));
+        CollectionAssert.AreEqual(new[] { "0.1.0", "0.2.0", "0.3.0" }, Versions());
+
+        await InstallLatest(Installer(new FakeGitHub().Release("v0.4.0")));
+        CollectionAssert.AreEqual(new[] { "0.3.0", "0.4.0" }, Versions(), "removed once a later installation finds it unused");
+    }
+
     // Only Windows refuses to rename a folder with a file open in it, which is what keeps a held version whole.
     [TestMethod]
     [OSCondition(OperatingSystems.Windows)]
