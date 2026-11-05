@@ -20,18 +20,22 @@ internal sealed class RDProjectWatcher : IDisposable
     private readonly string path;
     private readonly IAddinProjectChanges changes;
     private readonly FileSystemWatcher watcher;
-    private readonly Timer settle;
+    private readonly ITimer settle;
     private readonly CancellationTokenRegistration closed;
     private RDProject last;
     private int attempt;
     private bool disposed;
 
-    public RDProjectWatcher(string path, RDProject read, IAddinProjectChanges changes)
+    /// <param name="path">The project file.</param>
+    /// <param name="read">The project as it was last read, which changes are told against.</param>
+    /// <param name="changes">Where HexIDE takes the changes.</param>
+    /// <param name="time">The clock a write settles by.</param>
+    public RDProjectWatcher(string path, RDProject read, IAddinProjectChanges changes, TimeProvider time)
     {
         this.path = Path.GetFullPath(path);
         this.changes = changes;
         last = read;
-        settle = new Timer(_ => Reread(), null, Timeout.Infinite, Timeout.Infinite);
+        settle = time.CreateTimer(_ => Reread(), null, Timeout.InfiniteTimeSpan, Timeout.InfiniteTimeSpan);
         watcher = new FileSystemWatcher(Path.GetDirectoryName(this.path)!, Path.GetFileName(this.path))
         {
             NotifyFilter = NotifyFilters.LastWrite | NotifyFilters.FileName | NotifyFilters.Size | NotifyFilters.CreationTime,
@@ -177,9 +181,11 @@ internal static class RDProjectChanges
 /// The project type HexIDE opens <c>.rdproj</c> files with, and the watchers of the projects it opened, which go with the
 /// add-in.
 /// </summary>
-internal sealed class RDCoreProjectType : IDisposable
+/// <param name="time">The clock its watchers settle writes by; the system's when null.</param>
+internal sealed class RDCoreProjectType(TimeProvider? time = null) : IDisposable
 {
     private readonly ConcurrentDictionary<RDProjectWatcher, byte> watchers = new();
+    private readonly TimeProvider time = time ?? TimeProvider.System;
 
     /// <summary>What the Open Project dialog calls the files.</summary>
     public const string Title = "RDCore projects";
@@ -191,7 +197,7 @@ internal sealed class RDCoreProjectType : IDisposable
         OpenAsync = (path, changes, cancellationToken) => Task.Run(() =>
         {
             var project = RDProject.Read(path);
-            var watcher = new RDProjectWatcher(path, project, changes);
+            var watcher = new RDProjectWatcher(path, project, changes, time);
             watchers[watcher] = 0;
             watcher.Stopped += () => watchers.TryRemove(watcher, out _);
             return project.Content;

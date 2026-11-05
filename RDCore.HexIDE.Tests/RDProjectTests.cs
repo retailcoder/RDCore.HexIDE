@@ -153,7 +153,7 @@ public sealed class RDProjectTests : IDisposable
     {
         WriteProject("""["src/Main.bas"]""", otherFiles: "[]");
         var changes = new Changes { ThrowOnAdd = true };
-        using var watcher = new RDProjectWatcher(ProjectFile, RDProject.Read(ProjectFile), changes);
+        using var watcher = new RDProjectWatcher(ProjectFile, RDProject.Read(ProjectFile), changes, new ManualTime());
         Write("src/Helpers.bas", "Attribute VB_Name = \"Helpers\"\r\n");
         WriteProject("""["src/Main.bas", "src/Helpers.bas"]""", otherFiles: "[]");
 
@@ -226,24 +226,25 @@ public sealed class RDProjectTests : IDisposable
     }
 
     [TestMethod]
+    [Timeout(30_000, CooperativeCancellation = true)] // bounds a write the file system never reports; nothing waits on it otherwise
     public async Task An_open_project_s_file_is_followed_until_HexIDE_closes_it()
     {
         WriteProject("""["src/Main.bas"]""", otherFiles: "[]");
-        using var type = new RDCoreProjectType();
+        var time = new ManualTime();
+        using var type = new RDCoreProjectType(time);
         var changes = new Changes();
 
         var content = await type.Type.OpenAsync(ProjectFile, changes, TestContext.CancellationToken);
         Assert.AreEqual("Ledger", content.Name);
         Assert.AreEqual(1, type.Watching);
 
+        var noticed = time.WhenArmed();
         Write("src/Helpers.bas", "Attribute VB_Name = \"Helpers\"\r\n");
         WriteProject("""["src/Main.bas", "src/Helpers.bas"]""", otherFiles: "[]");
-        // The deadline only bounds a change the file system never reports.
-        var deadline = DateTime.UtcNow + TimeSpan.FromSeconds(30);
-        while (changes.Calls.Count == 0 && DateTime.UtcNow < deadline)
-        {
-            await Task.Delay(50, TestContext.CancellationToken);
-        }
+        // The file system reports the write, which arms the reread; the write is whole by then, so the reread sees all of it.
+        await noticed.WaitAsync(TestContext.CancellationToken);
+        Assert.AreEqual(0, changes.Calls.Count, "nothing is reread before the write settles");
+        time.Advance(RDProjectWatcher.Settle);
 
         CollectionAssert.AreEqual(new[] { $"added {Full("src/Helpers.bas")} StandardModule" }, changes.Calls);
 
@@ -256,11 +257,13 @@ public sealed class RDProjectTests : IDisposable
     {
         WriteProject("""["src/Main.bas"]""", otherFiles: "[]");
         var changes = new Changes();
-        using var watcher = new RDProjectWatcher(ProjectFile, RDProject.Read(ProjectFile), changes);
+        var time = new ManualTime();
+        using var watcher = new RDProjectWatcher(ProjectFile, RDProject.Read(ProjectFile), changes, time);
 
         File.WriteAllText(ProjectFile, """{ "Version": "0.1", "ProjectInfo": { "Name": "Ledger", "Modu""");
         watcher.Reread();
         Assert.AreEqual(0, changes.Calls.Count);
+        Assert.IsTrue(time.IsArmed, "read again once it settles");
 
         Write("src/Helpers.bas", "Attribute VB_Name = \"Helpers\"\r\n");
         WriteProject("""["src/Main.bas", "src/Helpers.bas"]""", otherFiles: "[]");
@@ -272,7 +275,19 @@ public sealed class RDProjectTests : IDisposable
     {
         private readonly CancellationTokenSource closed = new();
 
-        public List<string> Calls { get; } = [];
+        private readonly List<string> calls = [];
+
+        /// <summary>What HexIDE was told, so far.</summary>
+        public List<string> Calls
+        {
+            get
+            {
+                lock (calls)
+                {
+                    return [.. calls];
+                }
+            }
+        }
 
         public CancellationToken Closed => closed.Token;
 
@@ -300,9 +315,9 @@ public sealed class RDProjectTests : IDisposable
 
         private void Record(string call)
         {
-            lock (Calls)
+            lock (calls)
             {
-                Calls.Add(call);
+                calls.Add(call);
             }
         }
     }
