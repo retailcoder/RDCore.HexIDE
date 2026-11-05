@@ -42,6 +42,14 @@ public sealed class RDProjectTests : IDisposable
               "Modules": {{modules}}, "OtherFiles": {{otherFiles}}, "Folders": ["src", "src/Classes", "docs"] } }
             """);
 
+    // A watcher of the project as it is now, which the test tells of the file system's reports itself.
+    private RDProjectWatcher Following(Changes changes, TimeProvider time)
+    {
+        var watcher = new RDProjectWatcher(ProjectFile, changes, time);
+        watcher.Begin(RDProject.Read(ProjectFile));
+        return watcher;
+    }
+
     private const string Scripting =
         """[{ "Name": "Scripting", "Guid": "420b2830-e718-11cf-893d-00a0c9054228", "Major": 1, "Minor": 0, "AbsolutePath": "C:\\Windows\\System32\\scrrun.dll" }]""";
 
@@ -153,7 +161,7 @@ public sealed class RDProjectTests : IDisposable
     {
         WriteProject("""["src/Main.bas"]""", otherFiles: "[]");
         var changes = new Changes { ThrowOnAdd = true };
-        using var watcher = new RDProjectWatcher(ProjectFile, RDProject.Read(ProjectFile), changes, new ManualTime());
+        using var watcher = Following(changes, new ManualTime());
         Write("src/Helpers.bas", "Attribute VB_Name = \"Helpers\"\r\n");
         WriteProject("""["src/Main.bas", "src/Helpers.bas"]""", otherFiles: "[]");
 
@@ -253,12 +261,45 @@ public sealed class RDProjectTests : IDisposable
     }
 
     [TestMethod]
+    public async Task A_project_HexIDE_has_closed_already_is_not_followed()
+    {
+        WriteProject("""["src/Main.bas"]""", otherFiles: "[]");
+        using var type = new RDCoreProjectType(new ManualTime());
+        var changes = new Changes();
+        changes.Close();
+
+        await type.Type.OpenAsync(ProjectFile, changes, TestContext.CancellationToken);
+
+        Assert.AreEqual(0, type.Watching);
+    }
+
+    [TestMethod]
+    public void A_write_reported_before_the_first_read_ends_is_reread_after_it()
+    {
+        WriteProject("""["src/Main.bas"]""", otherFiles: "[]");
+        var changes = new Changes();
+        var time = new ManualTime();
+        using var watcher = new RDProjectWatcher(ProjectFile, changes, time);
+        var opened = RDProject.Read(ProjectFile);
+        Write("src/Helpers.bas", "Attribute VB_Name = \"Helpers\"\r\n");
+        WriteProject("""["src/Main.bas", "src/Helpers.bas"]""", otherFiles: "[]");
+
+        watcher.Schedule();
+        time.Advance(RDProjectWatcher.Settle);
+        Assert.IsTrue(time.IsArmed, "the reread waits for the first read");
+        watcher.Begin(opened);
+        time.Advance(RDProjectWatcher.Settle);
+
+        CollectionAssert.AreEqual(new[] { $"added {Full("src/Helpers.bas")} StandardModule" }, changes.Calls);
+    }
+
+    [TestMethod]
     public void A_file_caught_mid_write_is_read_again_and_nothing_is_reported_for_it()
     {
         WriteProject("""["src/Main.bas"]""", otherFiles: "[]");
         var changes = new Changes();
         var time = new ManualTime();
-        using var watcher = new RDProjectWatcher(ProjectFile, RDProject.Read(ProjectFile), changes, time);
+        using var watcher = Following(changes, time);
 
         File.WriteAllText(ProjectFile, """{ "Version": "0.1", "ProjectInfo": { "Name": "Ledger", "Modu""");
         watcher.Reread();

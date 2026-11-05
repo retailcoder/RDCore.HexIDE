@@ -19,38 +19,64 @@ internal sealed class RDProjectWatcher : IDisposable
     private readonly object gate = new();
     private readonly string path;
     private readonly IAddinProjectChanges changes;
-    private readonly FileSystemWatcher watcher;
     private readonly ITimer settle;
-    private readonly CancellationTokenRegistration closed;
-    private RDProject last;
+    private FileSystemWatcher? watcher;
+    private CancellationTokenRegistration closed;
+    private RDProject? last;
     private int attempt;
     private bool disposed;
 
     /// <param name="path">The project file.</param>
-    /// <param name="read">The project as it was last read, which changes are told against.</param>
     /// <param name="changes">Where HexIDE takes the changes.</param>
     /// <param name="time">The clock a write settles by.</param>
-    public RDProjectWatcher(string path, RDProject read, IAddinProjectChanges changes, TimeProvider time)
+    public RDProjectWatcher(string path, IAddinProjectChanges changes, TimeProvider time)
     {
         this.path = Path.GetFullPath(path);
         this.changes = changes;
-        last = read;
         settle = time.CreateTimer(_ => Reread(), null, Timeout.InfiniteTimeSpan, Timeout.InfiniteTimeSpan);
-        watcher = new FileSystemWatcher(Path.GetDirectoryName(this.path)!, Path.GetFileName(this.path))
+    }
+
+    /// <summary>Raised when the watcher stops: HexIDE closed the project, or the add-in goes.</summary>
+    public event Action? Stopped;
+
+    /// <summary>
+    /// Starts following the file, before the project is first read (<see cref="Begin"/>) so that a write while HexIDE opens
+    /// it isn't missed; stops at once when HexIDE has closed the project already.
+    /// </summary>
+    public void Start()
+    {
+        var files = new FileSystemWatcher(Path.GetDirectoryName(path)!, Path.GetFileName(path))
         {
             NotifyFilter = NotifyFilters.LastWrite | NotifyFilters.FileName | NotifyFilters.Size | NotifyFilters.CreationTime,
         };
-        watcher.Changed += (_, _) => Schedule();
-        watcher.Created += (_, _) => Schedule();
-        watcher.Renamed += (_, _) => Schedule();
-        watcher.EnableRaisingEvents = true;
+        files.Changed += (_, _) => Schedule();
+        files.Created += (_, _) => Schedule();
+        files.Renamed += (_, _) => Schedule();
+        lock (gate)
+        {
+            if (disposed)
+            {
+                files.Dispose();
+                return;
+            }
+
+            watcher = files;
+        }
+        files.EnableRaisingEvents = true;
         closed = changes.Closed.Register(Dispose);
     }
 
-    /// <summary>Raised when the watcher stops on its own.</summary>
-    public event Action? Stopped;
+    /// <summary>The project as it was first read, which the changes after it are told against.</summary>
+    public void Begin(RDProject read)
+    {
+        lock (gate)
+        {
+            last ??= read;
+        }
+    }
 
-    private void Schedule()
+    /// <summary>Rereads the file once it has been quiet for <see cref="Settle"/>: what the file system's reports of it do.</summary>
+    internal void Schedule()
     {
         lock (gate)
         {
@@ -72,6 +98,13 @@ internal sealed class RDProjectWatcher : IDisposable
         {
             if (disposed)
             {
+                return;
+            }
+
+            if (last is null)
+            {
+                // The first read is still going: what it finds is what this would have, so the reread waits for it.
+                settle.Change(Settle, Timeout.InfiniteTimeSpan);
                 return;
             }
 
@@ -119,7 +152,7 @@ internal sealed class RDProjectWatcher : IDisposable
 
             disposed = true;
         }
-        watcher.Dispose();
+        watcher?.Dispose();
         settle.Dispose();
         closed.Dispose();
         Stopped?.Invoke();
@@ -196,11 +229,21 @@ internal sealed class RDCoreProjectType(TimeProvider? time = null) : IDisposable
         FileNames = [RDCore.SDK.Workspace.ProjectFile.FileName],
         OpenAsync = (path, changes, cancellationToken) => Task.Run(() =>
         {
-            var project = RDProject.Read(path);
-            var watcher = new RDProjectWatcher(path, project, changes, time);
+            var watcher = new RDProjectWatcher(path, changes, time);
             watchers[watcher] = 0;
             watcher.Stopped += () => watchers.TryRemove(watcher, out _);
-            return project.Content;
+            try
+            {
+                watcher.Start();
+                var project = RDProject.Read(path);
+                watcher.Begin(project);
+                return project.Content;
+            }
+            catch
+            {
+                watcher.Dispose();
+                throw;
+            }
         }, cancellationToken),
     };
 
