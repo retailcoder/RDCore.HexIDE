@@ -54,4 +54,10 @@ public class PlatformVersionTests
         Assert.AreEqual("0.1.0-rc.1", shouted.Text);
         Assert.AreEqual(0, shouted.CompareTo(PlatformVersion.Parse("0.1.0-rc.1")));
     }
+
+    [TestMethod]
+    public void A_version_s_text_is_its_folder_s_name_not_what_was_written()
+    {
+        Assert.AreEqual("0.1.0-rc.1", PlatformVersion.Parse("V0.1.0-RC.1+build.5").Text);
+    }
 }

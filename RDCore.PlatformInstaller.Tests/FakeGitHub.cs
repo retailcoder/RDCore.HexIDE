@@ -26,6 +26,9 @@ internal sealed class FakeGitHub : HttpMessageHandler
     /// </summary>
     public TaskCompletionSource? MidDownloadGate { get; set; }
 
+    /// <summary>Sends every answer without a <c>Content-Length</c>, as a chunked response would be.</summary>
+    public bool Unsized { get; set; }
+
     /// <summary>Adds a release whose zip holds <paramref name="entries"/>, by default a whole platform.</summary>
     /// <param name="listedSize">The size the release lists for its zip, when it isn't the zip's own.</param>
     /// <param name="host">The host its assets are on.</param>
@@ -91,7 +94,7 @@ internal sealed class FakeGitHub : HttpMessageHandler
         var url = request.RequestUri!.GetLeftPart(UriPartial.Path);
         if (url == "https://api.github.com/repos/rubberduck-vba/RDCore/releases")
         {
-            return new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(JsonSerializer.Serialize(releases)) };
+            return new HttpResponseMessage(HttpStatusCode.OK) { Content = Answer(Encoding.UTF8.GetBytes(JsonSerializer.Serialize(releases))) };
         }
 
         if (!files.TryGetValue(url, out var content))
@@ -109,8 +112,12 @@ internal sealed class FakeGitHub : HttpMessageHandler
             return new HttpResponseMessage(HttpStatusCode.OK) { Content = new StreamContent(new HeldStream(content, midway.Task)) };
         }
 
-        return new HttpResponseMessage(HttpStatusCode.OK) { Content = new ByteArrayContent(content) };
+        return new HttpResponseMessage(HttpStatusCode.OK) { Content = Answer(content) };
     }
+
+    // A stream that can't seek has no length to send.
+    private HttpContent Answer(byte[] content) =>
+        Unsized ? new StreamContent(new HeldStream(content, Task.CompletedTask)) : new ByteArrayContent(content);
 
     // The first half of its bytes at once, the rest once the gate opens.
     private sealed class HeldStream(byte[] content, Task gate) : Stream

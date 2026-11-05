@@ -80,38 +80,54 @@ internal sealed class PlatformSource(AddinSettings settings, PlatformInstaller.P
     }
 
     /// <summary>
-    /// Makes sure the platform <paramref name="choice"/> names is still there before its server starts. When it has gone, the
-    /// same version is deployed again, as the server's launch names it, once the user agrees.
+    /// Makes sure the platform <paramref name="choice"/> names is still there before its server starts: its manifest, and
+    /// <paramref name="languageServer"/>, the executable the server's launch names. When either has gone, the same version is
+    /// deployed again, as the server's launch names it, once the user agrees.
     /// </summary>
     /// <exception cref="InvalidOperationException">It is gone and can't be had again; the message says why, for HexIDE to show.</exception>
-    public async Task EnsureStillThereAsync(PlatformChoice choice, CancellationToken cancellationToken)
+    public async Task EnsureStillThereAsync(PlatformChoice choice, string languageServer, CancellationToken cancellationToken)
     {
-        if (File.Exists(Path.Combine(choice.Root, "rdcore.json")))
+        if (IsWhole(choice, languageServer))
         {
             return;
         }
 
         if (choice.Installed is not { } installed)
         {
-            throw new InvalidOperationException(Strings.PlatformRootUnusable(choice.Root, Strings.NoManifest));
+            throw new InvalidOperationException(Strings.PlatformRootUnusable(choice.Root,
+                HasManifest(choice) ? Strings.LanguageServerMissing : Strings.NoManifest));
         }
 
+        PlatformRelease? release;
+        var agreed = false;
         try
         {
-            var release = await installer.Feed.FindAsync(installed.Version, cancellationToken)
-                ?? throw new InvalidOperationException(Strings.VersionGone(installed.Version.Text));
-            if (!await AskAsync(release))
+            release = await installer.Feed.FindAsync(installed.Version, cancellationToken);
+            if (release is not null && (agreed = await AskAsync(release)))
             {
-                throw new InvalidOperationException(Strings.PlatformGone(installed.Version.Text));
+                await InstallAsync(release, cancellationToken);
             }
-
-            await InstallAsync(release, cancellationToken);
         }
-        catch (Exception ex) when (ex is not InvalidOperationException && Reason(ex, cancellationToken) is { } reason)
+        catch (Exception ex) when (Reason(ex, cancellationToken) is { } reason)
         {
             throw new InvalidOperationException(reason, ex);
         }
+
+        if (release is null)
+        {
+            throw new InvalidOperationException(Strings.VersionGone(installed.Version.Text));
+        }
+
+        if (!agreed)
+        {
+            throw new InvalidOperationException(Strings.PlatformGone(installed.Version.Text));
+        }
     }
+
+    /// <summary>Whether the platform <paramref name="choice"/> names still has its manifest and <paramref name="languageServer"/>.</summary>
+    public static bool IsWhole(PlatformChoice choice, string languageServer) => HasManifest(choice) && File.Exists(languageServer);
+
+    private static bool HasManifest(PlatformChoice choice) => File.Exists(Path.Combine(choice.Root, "rdcore.json"));
 
     // Asked once for every project that wants it at the same time: a question still open is shared, and one answered is never
     // answered again, so a later question is asked afresh.
@@ -144,18 +160,17 @@ internal sealed class PlatformSource(AddinSettings settings, PlatformInstaller.P
         return await Task.Run(() => installer.InstallAsync(release, view, cancellationToken), cancellationToken);
     }
 
-    // What to tell the user of a failure, in their language; null for what isn't one to tell, as a cancellation is.
+    // What to tell the user of a failure, in their language; null only for the cancellation of a project that closed.
     private static string? Reason(Exception failure, CancellationToken cancellationToken) => failure switch
     {
         OperationCanceledException when cancellationToken.IsCancellationRequested => null,
         // HttpClient's own time limit is a cancellation nobody asked for.
         OperationCanceledException => Strings.TimedOut,
-        HttpRequestException ex => Strings.ReleasesUnreachable(ex.Message),
+        HttpRequestException => Strings.ReleasesUnreachable(Failures.Describe(failure)),
         PlatformInstallException { Failure: InstallFailure.ChecksumMismatch } => Strings.ChecksumMismatch,
         PlatformInstallException { Failure: InstallFailure.NotAPlatform } => Strings.NotAPlatform,
         PlatformInstallException { Failure: InstallFailure.TooLarge } => Strings.TooLarge,
         PlatformInstallException { Failure: InstallFailure.UnreadableReleases } => Strings.ReleasesUnreadable,
-        IOException or UnauthorizedAccessException => Strings.InstallFailed(failure.Message),
-        _ => null,
+        _ => Strings.InstallFailed(Failures.Describe(failure)),
     };
 }

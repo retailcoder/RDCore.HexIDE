@@ -1,6 +1,8 @@
 using System.Text.Json;
 using RDCore.HexIDE.Server;
 using RDCore.SDK.Client;
+using StreamJsonRpc;
+using StreamJsonRpc.Protocol;
 
 namespace RDCore.HexIDE.Tests;
 
@@ -16,13 +18,20 @@ public class ConnectionChannelTests
         var claimed = channel.ServerMethods[RDCorePlatformProtocol.SessionMessageBox];
         var answer = JsonDocument.Parse("""{ "result": 1 }""").RootElement;
 
-        await Assert.ThrowsExactlyAsync<InvalidOperationException>(() => claimed(null, TestContext.CancellationToken));
+        await RefusedAsMethodNotFound(() => claimed(null, TestContext.CancellationToken));
         using (channel.OnRequest(RDCorePlatformProtocol.SessionMessageBox, (_, _) => Task.FromResult<JsonElement?>(answer)))
         {
             Assert.AreEqual(answer, await claimed(null, TestContext.CancellationToken));
         }
 
-        await Assert.ThrowsExactlyAsync<InvalidOperationException>(() => claimed(null, TestContext.CancellationToken));
+        await RefusedAsMethodNotFound(() => claimed(null, TestContext.CancellationToken));
+    }
+
+    // HexIDE passes a LocalRpcException on to the server as it is; anything else it answers as an invocation error.
+    private static async Task RefusedAsMethodNotFound(Func<Task> answer)
+    {
+        var refusal = await Assert.ThrowsExactlyAsync<LocalRpcException>(answer);
+        Assert.AreEqual((int)JsonRpcErrorCode.MethodNotFound, refusal.ErrorCode);
     }
 
     [TestMethod]

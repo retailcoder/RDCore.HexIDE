@@ -1,5 +1,6 @@
 using System.IO.Compression;
 using System.Security.Cryptography;
+using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 
@@ -63,7 +64,7 @@ public sealed class PlatformInstaller
             }
 
             var root = VersionRoot(version);
-            return File.Exists(Path.Combine(root, "rdcore.json")) ? new InstalledPlatform(version, root) : null;
+            return IsDeployed(root) ? new InstalledPlatform(version, root) : null;
         }
     }
 
@@ -76,6 +77,10 @@ public sealed class PlatformInstaller
     /// can't be renamed out of the way, and a removal leaves it whole. The lease is per process, and the system frees it with the
     /// process.
     /// </summary>
+    /// <remarks>
+    /// <b>Windows only.</b> The guard is Windows' refusal to rename a folder that holds an open file. Elsewhere an open file
+    /// doesn't stop its folder being renamed or removed, so the lease keeps nothing deployed there.
+    /// </remarks>
     /// <exception cref="FileNotFoundException">The platform isn't deployed any more.</exception>
     public static IDisposable Hold(InstalledPlatform platform) =>
         new FileStream(platform.Manifest, FileMode.Open, FileAccess.Read, FileShare.Read);
@@ -84,6 +89,11 @@ public sealed class PlatformInstaller
     /// Deploys <paramref name="release"/> and makes it the platform in use. A version deployed already, by this process or
     /// another, is made current without a download.
     /// </summary>
+    /// <remarks>
+    /// A version older than the one in use is deployed beside it but not made current, so that whoever asked for it, as a server
+    /// whose launch names it does, has it without taking the newer one from anyone else. It is kept, until an installation
+    /// after this one finds it unused.
+    /// </remarks>
     /// <exception cref="PlatformInstallException">
     /// The download doesn't match the release's checksums, is bigger than it should be, or isn't a platform. Nothing is
     /// deployed, and the platform in use stays as it was.
@@ -96,7 +106,7 @@ public sealed class PlatformInstaller
         using var gate = await AcquireLockAsync(cancellationToken).ConfigureAwait(false);
 
         var root = VersionRoot(release.Version);
-        if (!File.Exists(Path.Combine(root, "rdcore.json")))
+        if (!IsDeployed(root))
         {
             await DeployAsync(release, root, progress, cancellationToken).ConfigureAwait(false);
         }
@@ -105,15 +115,29 @@ public sealed class PlatformInstaller
             progress?.Report(new InstallProgress(InstallStage.Deploying));
         }
 
-        MakeCurrent(release.Version);
-        RemoveOldVersions();
+        if (Current is not { } current || current.Version.CompareTo(release.Version) <= 0)
+        {
+            MakeCurrent(release.Version);
+        }
+
+        RemoveOldVersions(keep: release.Version);
         return new InstalledPlatform(release.Version, root);
     }
 
     private async Task DeployAsync(PlatformRelease release, string root, IProgress<InstallProgress>? progress,
         CancellationToken cancellationToken)
     {
-        var sums = await http.GetStringAsync(release.Checksums, cancellationToken).ConfigureAwait(false);
+        string sums;
+        using (var response = await http.GetAsync(release.Checksums, HttpCompletionOption.ResponseHeadersRead, cancellationToken)
+            .ConfigureAwait(false))
+        {
+            response.EnsureSuccessStatusCode();
+            sums = Encoding.UTF8.GetString(await BoundedContent.ReadAsync(response, options.MaxChecksumsBytes,
+                size => new PlatformInstallException(InstallFailure.TooLarge,
+                    $"The release's {ReleaseFeed.ChecksumsAsset} is bigger than it should be: {size} bytes at least, where {options.MaxChecksumsBytes} is the most."),
+                cancellationToken).ConfigureAwait(false));
+        }
+
         var expected = Sha256Sums.Find(sums, release.ArchiveName)
             ?? throw new PlatformInstallException(InstallFailure.ChecksumMismatch,
                 $"The release's {ReleaseFeed.ChecksumsAsset} doesn't list {release.ArchiveName}.");
@@ -137,7 +161,7 @@ public sealed class PlatformInstaller
             EnsurePlatform(unpacked, release);
 
             progress?.Report(new InstallProgress(InstallStage.Deploying));
-            // A folder of this version without its manifest is what's left of a deployment someone broke: it is replaced.
+            // A folder of this version that isn't a whole platform is what's left of a deployment someone broke: it is replaced.
             DeleteFolder(root);
             Directory.CreateDirectory(Path.GetDirectoryName(root)!);
             Directory.Move(unpacked, root);
@@ -221,13 +245,25 @@ public sealed class PlatformInstaller
         }
     }
 
-    // A platform root holds rdcore.json at its top, and the language server where that names it, inside the root.
     private static void EnsurePlatform(string root, PlatformRelease release)
+    {
+        if (Flaw(root) is { } flaw)
+        {
+            throw NotAPlatform(release, flaw.Why, flaw.Inner);
+        }
+    }
+
+    // A version is deployed while its folder is still a whole platform: one whose language server was removed is deployed again.
+    private static bool IsDeployed(string root) => Flaw(root) is null;
+
+    // A platform root holds rdcore.json at its top, and the language server where that names it, inside the root: why the
+    // folder isn't one, or null when it is.
+    private static (string Why, Exception? Inner)? Flaw(string root)
     {
         var manifestPath = Path.Combine(root, "rdcore.json");
         if (!File.Exists(manifestPath))
         {
-            throw NotAPlatform(release, "it has no rdcore.json at its root");
+            return ("it has no rdcore.json at its root", null);
         }
 
         string? languageServer;
@@ -237,12 +273,12 @@ public sealed class PlatformInstaller
         }
         catch (Exception ex) when (ex is JsonException or InvalidOperationException or FormatException)
         {
-            throw NotAPlatform(release, $"its rdcore.json can't be read: {ex.Message}", ex);
+            return ($"its rdcore.json can't be read: {ex.Message}", ex);
         }
 
         if (string.IsNullOrWhiteSpace(languageServer))
         {
-            throw NotAPlatform(release, "its rdcore.json names no language server");
+            return ("its rdcore.json names no language server", null);
         }
 
         var full = Path.GetFullPath(Path.Combine(root, languageServer.Replace('\\', '/').Replace('/', Path.DirectorySeparatorChar)));
@@ -250,13 +286,15 @@ public sealed class PlatformInstaller
         var comparison = OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal;
         if (Path.IsPathRooted(languageServer) || !full.StartsWith(prefix, comparison))
         {
-            throw NotAPlatform(release, $"its rdcore.json names a language server outside the platform, {languageServer}");
+            return ($"its rdcore.json names a language server outside the platform, {languageServer}", null);
         }
 
         if (!File.Exists(full) && !File.Exists(full + ".exe"))
         {
-            throw NotAPlatform(release, $"it has no language server at {languageServer}, which its rdcore.json names");
+            return ($"it has no language server at {languageServer}, which its rdcore.json names", null);
         }
+
+        return null;
     }
 
     private static PlatformInstallException NotAPlatform(PlatformRelease release, string why, Exception? inner = null) =>
@@ -291,9 +329,10 @@ public sealed class PlatformInstaller
         File.Move(temporary, path, overwrite: true);
     }
 
-    // Every version but the current one and the one before it, each whole: renamed out of the way first, which fails while
-    // a process runs from it, and only then deleted. One that can't be renamed is left as it is, for a later installation.
-    private void RemoveOldVersions()
+    // Every version but the current one, the one before it and the one just installed, each whole: renamed out of the way
+    // first, which fails while a process runs from it, and only then deleted. One that can't be renamed is left as it is, for a
+    // later installation.
+    private void RemoveOldVersions(PlatformVersion keep)
     {
         var state = ReadState();
         var versions = Path.Combine(options.Root, VersionsFolder);
@@ -307,7 +346,7 @@ public sealed class PlatformInstaller
                 continue;
             }
 
-            if (name == state.Current || name == state.Previous || !PlatformVersion.TryParse(name, out _))
+            if (name == state.Current || name == state.Previous || name == keep.Text || !PlatformVersion.TryParse(name, out _))
             {
                 continue;
             }

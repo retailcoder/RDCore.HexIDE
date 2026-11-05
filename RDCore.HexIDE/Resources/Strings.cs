@@ -77,6 +77,28 @@ internal static class Strings
     /// <summary>{0}: the project file.</summary>
     public static string ProjectFileUnreadable(string path) => Format(nameof(ProjectFileUnreadable), path);
 
+    /// <summary>{0}: the status code.</summary>
+    public static string HttpStatus(int status) => Format(nameof(HttpStatus), status);
+
+    public static string SecureConnectionFailed => Get(nameof(SecureConnectionFailed));
+
+    public static string NoConnection => Get(nameof(NoConnection));
+
+    public static string AccessDenied => Get(nameof(AccessDenied));
+
+    public static string DiskFull => Get(nameof(DiskFull));
+
+    public static string FileProblem => Get(nameof(FileProblem));
+
+    /// <summary>{0}: the exception's type name, for a report.</summary>
+    public static string UnexpectedFailure(string type) => Format(nameof(UnexpectedFailure), type);
+
+    public static string FolderMissing => Get(nameof(FolderMissing));
+
+    public static string ManifestUnusable => Get(nameof(ManifestUnusable));
+
+    public static string LanguageServerMissing => Get(nameof(LanguageServerMissing));
+
     /// <summary>{0}: a size in megabytes.</summary>
     public static string Megabytes(double megabytes) => Format(nameof(Megabytes), megabytes);
 }

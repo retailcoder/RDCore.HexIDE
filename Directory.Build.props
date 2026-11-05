@@ -40,6 +40,11 @@
     <RDCoreProtocolProject>$(DependenciesRoot)RDCore/RDCore.SDK.Protocol/RDCore.SDK.Protocol.csproj</RDCoreProtocolProject>
     <!-- HexIDE shares Avalonia with its add-ins, so the add-in compiles against the version HexIDE ships and carries none of its own. -->
     <HexIdeAvaloniaVersion>12.0.5</HexIdeAvaloniaVersion>
+    <!-- HexIDE's JSON-RPC: the add-in compiles against it only, to refuse a request with the error code HexIDE passes on as is. -->
+    <HexIdeStreamJsonRpcVersion>2.24.92</HexIdeStreamJsonRpcVersion>
+    <!-- what StreamJsonRpc pulls in, pinned where HexIDE pins them, above the versions with advisories against them. -->
+    <HexIdeMessagePackVersion>2.5.307</HexIdeMessagePackVersion>
+    <HexIdeNerdbankMessagePackVersion>1.2.4</HexIdeNerdbankMessagePackVersion>
   </PropertyGroup>
 
   <ItemGroup Condition="'$(IsPackable)' != 'false'">

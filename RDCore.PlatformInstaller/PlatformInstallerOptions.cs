@@ -36,6 +36,12 @@ public sealed record PlatformInstallerOptions
     /// <summary>The most entries a platform's zip may have; one with more is refused before it is unpacked.</summary>
     public int MaxEntries { get; init; } = 50_000;
 
+    /// <summary>The most a release's <c>SHA256SUMS</c> may be; a bigger one is refused before the platform is downloaded. 64 KiB.</summary>
+    public long MaxChecksumsBytes { get; init; } = 64L << 10;
+
+    /// <summary>The most GitHub's list of releases may be; a bigger answer is refused as not one. 16 MiB.</summary>
+    public long MaxReleasesBytes { get; init; } = 16L << 20;
+
     /// <summary>
     /// The root a user's platform is installed under: <c>RDCore/Platform</c> in the local application data folder, which is
     /// RDCore's own, not any one client's.

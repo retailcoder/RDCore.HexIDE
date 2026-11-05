@@ -1,4 +1,6 @@
 using System.Collections.Concurrent;
+using System.Globalization;
+using System.Net;
 using RDCore.HexIDE.Platform;
 using RDCore.HexIDE.Resources;
 using RDCore.PlatformInstaller;
@@ -41,7 +43,7 @@ public sealed class PlatformSourceTests : IDisposable
         Directory.Delete(choice.Root, recursive: true);
 
         // A newer release came out meanwhile: the server's launch still names 0.1.0, so 0.1.0 is what comes back.
-        await Source(new FakeGitHub().Release("v0.1.0").Release("v0.2.0")).EnsureStillThereAsync(choice, TestContext.CancellationToken);
+        await Source(new FakeGitHub().Release("v0.1.0").Release("v0.2.0")).EnsureStillThereAsync(choice, LanguageServer(choice), TestContext.CancellationToken);
 
         Assert.IsTrue(File.Exists(Path.Combine(choice.Root, "rdcore.json")));
         Assert.AreEqual(2, prompts.Asked.Count, "asked again before downloading it again");
@@ -57,7 +59,7 @@ public sealed class PlatformSourceTests : IDisposable
         Directory.Delete(choice.Root, recursive: true);
         prompts.Answer = false;
 
-        await Assert.ThrowsExactlyAsync<InvalidOperationException>(() => source.EnsureStillThereAsync(choice, TestContext.CancellationToken));
+        await Assert.ThrowsExactlyAsync<InvalidOperationException>(() => source.EnsureStillThereAsync(choice, LanguageServer(choice), TestContext.CancellationToken));
 
         Assert.AreEqual(2, prompts.Asked.Count, "the user was asked again, and said no this time");
         Assert.IsFalse(Directory.Exists(choice.Root));
@@ -71,12 +73,12 @@ public sealed class PlatformSourceTests : IDisposable
         Directory.Delete(choice.Root, recursive: true);
 
         var taken = await Assert.ThrowsExactlyAsync<InvalidOperationException>(() =>
-            Source(new FakeGitHub().Release("v0.2.0")).EnsureStillThereAsync(choice, TestContext.CancellationToken));
+            Source(new FakeGitHub().Release("v0.2.0")).EnsureStillThereAsync(choice, LanguageServer(choice), TestContext.CancellationToken));
         Assert.AreEqual(Strings.VersionGone("0.1.0"), taken.Message);
 
         prompts.Answer = false;
         var declined = await Assert.ThrowsExactlyAsync<InvalidOperationException>(() =>
-            Source(new FakeGitHub().Release("v0.1.0")).EnsureStillThereAsync(choice, TestContext.CancellationToken));
+            Source(new FakeGitHub().Release("v0.1.0")).EnsureStillThereAsync(choice, LanguageServer(choice), TestContext.CancellationToken));
         Assert.AreEqual(Strings.PlatformGone("0.1.0"), declined.Message);
     }
 
@@ -86,11 +88,43 @@ public sealed class PlatformSourceTests : IDisposable
         var github = new FakeGitHub().Release("v0.1.0");
         var missing = Path.Combine(folder, "rdcore-dev");
 
+        var choice = new PlatformChoice(missing, null);
         await Assert.ThrowsExactlyAsync<InvalidOperationException>(() =>
-            Source(github, missing).EnsureStillThereAsync(new PlatformChoice(missing, null), TestContext.CancellationToken));
+            Source(github, missing).EnsureStillThereAsync(choice, LanguageServer(choice), TestContext.CancellationToken));
 
         Assert.AreEqual(0, github.Requests.Count);
     }
+
+    [TestMethod]
+    public async Task A_deployed_version_that_lost_its_language_server_is_deployed_again_once_the_user_agrees()
+    {
+        var choice = await Source(new FakeGitHub().Release("v0.1.0")).GetAsync(TestContext.CancellationToken);
+        Assert.IsNotNull(choice);
+        File.Delete(LanguageServer(choice));
+
+        await Source(new FakeGitHub().Release("v0.1.0")).EnsureStillThereAsync(choice, LanguageServer(choice), TestContext.CancellationToken);
+
+        Assert.IsTrue(File.Exists(LanguageServer(choice)));
+        Assert.AreEqual(2, prompts.Asked.Count, "asked again before downloading it again");
+    }
+
+    [TestMethod]
+    public async Task A_development_root_that_lost_its_language_server_says_so()
+    {
+        var root = Path.Combine(folder, "rdcore-dev");
+        Directory.CreateDirectory(root);
+        File.WriteAllText(Path.Combine(root, "rdcore.json"), """{ "langService": "RDCore.LanguageServer/RDCore.LanguageServer.exe" }""");
+        var choice = new PlatformChoice(root, null);
+
+        var failed = await Assert.ThrowsExactlyAsync<InvalidOperationException>(() =>
+            Source(new FakeGitHub(), root).EnsureStillThereAsync(choice, LanguageServer(choice), TestContext.CancellationToken));
+
+        Assert.AreEqual(Strings.PlatformRootUnusable(root, Strings.LanguageServerMissing), failed.Message);
+    }
+
+    // Where a platform's zip has its language server, which is where the server's launch names it.
+    private static string LanguageServer(PlatformChoice choice) =>
+        Path.Combine(choice.Root, "RDCore.LanguageServer", "RDCore.LanguageServer.exe");
 
     [TestMethod]
     public async Task A_request_GitHub_doesn_t_answer_in_time_is_told_to_the_user()
@@ -120,6 +154,64 @@ public sealed class PlatformSourceTests : IDisposable
         Assert.IsNotNull(choice);
         Assert.IsTrue(prompts.ReportedOn.Count > 0);
         Assert.IsFalse(prompts.ReportedOn.Contains(ui.ThreadId), "the installation reported from the UI thread");
+    }
+
+    [TestMethod]
+    public async Task A_failure_nothing_names_is_still_told_to_the_user()
+    {
+        Assert.IsNull(await Source(new Throwing(new NotSupportedException("Specified method is not supported."))).GetAsync(TestContext.CancellationToken));
+
+        Assert.AreEqual(Strings.InstallFailed(Strings.UnexpectedFailure(nameof(NotSupportedException))), prompts.Told.Single());
+    }
+
+    [TestMethod]
+    public async Task A_failure_nothing_names_before_a_server_starts_says_why_for_HexIDE_to_show()
+    {
+        var choice = await Source(new FakeGitHub().Release("v0.1.0")).GetAsync(TestContext.CancellationToken);
+        Assert.IsNotNull(choice);
+        Directory.Delete(choice.Root, recursive: true);
+
+        var failed = await Assert.ThrowsExactlyAsync<InvalidOperationException>(() =>
+            Source(new Throwing(new InvalidOperationException("Sequence contains no elements."))).EnsureStillThereAsync(choice, LanguageServer(choice), TestContext.CancellationToken));
+
+        Assert.AreEqual(Strings.InstallFailed(Strings.UnexpectedFailure(nameof(InvalidOperationException))), failed.Message);
+    }
+
+    [TestMethod]
+    [DataRow("en")]
+    [DataRow("fr-CA")]
+    public async Task Why_GitHub_couldn_t_be_reached_is_told_in_the_user_s_language_and_not_in_the_exception_s(string culture)
+    {
+        var before = CultureInfo.CurrentUICulture;
+        CultureInfo.CurrentUICulture = new CultureInfo(culture);
+        try
+        {
+            var unreachable = new HttpRequestException(HttpRequestError.NameResolutionError, "No such host is known. (api.github.com:443)");
+            Assert.IsNull(await Source(new Throwing(unreachable)).GetAsync(TestContext.CancellationToken));
+            Assert.IsNull(await Source(new Answering(HttpStatusCode.ServiceUnavailable)).GetAsync(TestContext.CancellationToken));
+
+            CollectionAssert.AreEqual(
+                new[] { Strings.ReleasesUnreachable(Strings.NoConnection), Strings.ReleasesUnreachable(Strings.HttpStatus(503)) },
+                prompts.Told);
+            Assert.IsFalse(prompts.Told.Any(told => told.Contains("No such host") || told.Contains("Service Unavailable")));
+            Assert.AreEqual(culture == "en", prompts.Told[0].StartsWith("RDCore's releases"), "told in the culture's language");
+        }
+        finally
+        {
+            CultureInfo.CurrentUICulture = before;
+        }
+    }
+
+    private sealed class Throwing(Exception failure) : HttpMessageHandler
+    {
+        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken) =>
+            throw failure;
+    }
+
+    private sealed class Answering(HttpStatusCode status) : HttpMessageHandler
+    {
+        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken) =>
+            Task.FromResult(new HttpResponseMessage(status));
     }
 
     private sealed class TimingOut : HttpMessageHandler

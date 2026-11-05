@@ -150,6 +150,26 @@ public sealed class PlatformInstallerTests : IDisposable
     }
 
     [TestMethod]
+    [DataRow(false)]
+    [DataRow(true)]
+    public async Task A_SHA256SUMS_bigger_than_one_should_be_is_refused_before_the_platform_is_downloaded(bool unsized)
+    {
+        var github = new FakeGitHub { Unsized = unsized }.Release("v0.1.0");
+
+        await Refused(Installer(github, adjust: options => options with { MaxChecksumsBytes = 16 }), InstallFailure.TooLarge);
+
+        Assert.IsFalse(github.Requests.Any(request => request.AbsolutePath.EndsWith(".zip")));
+    }
+
+    [TestMethod]
+    public async Task A_release_whose_files_don_t_say_their_size_installs()
+    {
+        var installed = await InstallLatest(Installer(new FakeGitHub { Unsized = true }.Release("v0.1.0")));
+
+        Assert.AreEqual("0.1.0", installed.Version.Text);
+    }
+
+    [TestMethod]
     public async Task An_archive_with_too_many_entries_or_too_much_to_unpack_is_refused_before_it_is_unpacked()
     {
         await Refused(Installer(new FakeGitHub().Release("v0.1.0"), adjust: options => options with { MaxEntries = 2 }),
@@ -195,6 +215,20 @@ public sealed class PlatformInstallerTests : IDisposable
     }
 
     [TestMethod]
+    public async Task A_platform_in_use_that_has_lost_its_language_server_is_no_platform_and_is_deployed_again()
+    {
+        var installer = Installer(new FakeGitHub().Release("v0.1.0"));
+        var installed = await InstallLatest(installer);
+        var languageServer = Path.Combine(installed.Root, "RDCore.LanguageServer", "RDCore.LanguageServer.exe");
+        File.Delete(languageServer);
+
+        Assert.IsNull(installer.Current);
+        await InstallLatest(installer);
+        Assert.AreEqual(installed, installer.Current);
+        Assert.IsTrue(File.Exists(languageServer));
+    }
+
+    [TestMethod]
     public async Task An_update_keeps_the_version_before_it_and_removes_older_ones()
     {
         await InstallLatest(Installer(new FakeGitHub().Release("v0.1.0")));
@@ -205,6 +239,27 @@ public sealed class PlatformInstallerTests : IDisposable
 
         Assert.AreEqual("0.3.0", installer.Current?.Version.Text);
         CollectionAssert.AreEqual(new[] { "0.2.0", "0.3.0" }, Versions());
+    }
+
+    [TestMethod]
+    public async Task An_older_version_installed_again_is_kept_beside_the_one_in_use_which_stays_in_use()
+    {
+        await InstallLatest(Installer(new FakeGitHub().Release("v0.1.0")));
+        await InstallLatest(Installer(new FakeGitHub().Release("v0.2.0")));
+        await InstallLatest(Installer(new FakeGitHub().Release("v0.3.0")));
+        var installer = Installer(new FakeGitHub().Release("v0.1.0").Release("v0.3.0"));
+        var older = await installer.Feed.FindAsync(PlatformVersion.Parse("0.1.0"), TestContext.CancellationToken);
+        Assert.IsNotNull(older);
+
+        // As a server whose launch names 0.1.0 has it deployed again.
+        var installed = await installer.InstallAsync(older, null, TestContext.CancellationToken);
+
+        Assert.AreEqual("0.3.0", installer.Current?.Version.Text);
+        Assert.IsTrue(File.Exists(installed.Manifest));
+        CollectionAssert.AreEqual(new[] { "0.1.0", "0.2.0", "0.3.0" }, Versions());
+
+        await InstallLatest(Installer(new FakeGitHub().Release("v0.4.0")));
+        CollectionAssert.AreEqual(new[] { "0.3.0", "0.4.0" }, Versions(), "removed once a later installation finds it unused");
     }
 
     // Only Windows refuses to rename a folder with a file open in it, which is what keeps a held version whole.
