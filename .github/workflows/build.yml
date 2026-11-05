@@ -1,0 +1,46 @@
+name: Build and Test
+
+on:
+ push:
+  branches: [main]
+ pull_request:
+  branches: [main]
+
+permissions:
+ contents: read
+
+jobs:
+ build-and-test:
+  # HexIDE's add-in contract and its UI (Avalonia) are cross-platform, so everything builds and tests on Linux. The platform
+  # RDCore.PlatformInstaller deploys is Windows-only for now (win-x64), and so are the tests of what it does on disk there.
+  strategy:
+   fail-fast: false
+   matrix:
+    os: [ubuntu-latest, windows-latest]
+  runs-on: ${{ matrix.os }}
+
+  steps:
+   - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+     with:
+      persist-credentials: false
+
+   - name: Setup .NET
+     uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
+     with:
+      dotnet-version: 10.0
+
+   - name: Dependencies
+     shell: pwsh
+     run: ./tools/Get-Dependencies.ps1
+
+   - name: Build (Debug)
+     run: dotnet build RDCore.HexIDE.slnx --configuration Debug
+
+   - name: Test (Debug)
+     run: dotnet test RDCore.HexIDE.slnx --configuration Debug --no-build --verbosity normal
+
+   - name: Build (Release)
+     run: dotnet build RDCore.HexIDE.slnx --configuration Release
+
+   - name: Test (Release)
+     run: dotnet test RDCore.HexIDE.slnx --configuration Release --no-build --verbosity normal

@@ -1,0 +1,47 @@
+<Project>
+
+  <PropertyGroup>
+    <!-- the single version source for every project; a release tag must equal v<VersionPrefix>[-suffix], the suffix passed as -p:VersionSuffix. -->
+    <VersionPrefix>0.1.0</VersionPrefix>
+    <!-- an alpha until said otherwise: the installer's default channel follows the add-in's own build, preview for a prerelease. -->
+    <VersionSuffix Condition="'$(VersionSuffix)' == ''">alpha</VersionSuffix>
+  </PropertyGroup>
+
+  <!-- what every project says about itself. -->
+  <PropertyGroup>
+    <Authors>9562-7303 Québec inc.</Authors>
+    <Company>9562-7303 Québec inc.</Company>
+    <Product>RDCore</Product>
+    <Copyright>Copyright © 2026 $(Authors)</Copyright>
+    <PackageLicenseFile>LICENSE-GPLv3.md</PackageLicenseFile>
+    <PackageProjectUrl>https://github.com/rubberduck-vba/RDCore.HexIDE</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/rubberduck-vba/RDCore.HexIDE</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+    <PackageTags>VBA;VB6;RDCore;Rubberduck;HexIDE;add-in</PackageTags>
+    <PackageIcon>ducky.png</PackageIcon>
+  </PropertyGroup>
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <LangVersion>latest</LangVersion>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+  </PropertyGroup>
+
+  <!-- the sources the add-in builds against until they are packages. tools/Get-Dependencies.ps1 fetches them into deps/, at the
+       commits tools/dependencies.json pins: those two files and these properties are the only places that name them. -->
+  <PropertyGroup>
+    <DependenciesRoot>$(MSBuildThisFileDirectory)deps/</DependenciesRoot>
+    <HexIdeCoreProject>$(DependenciesRoot)HexIDE/IDE/HexIDE.Core/HexIDE.Core.csproj</HexIdeCoreProject>
+    <RDCoreProtocolProject>$(DependenciesRoot)RDCore/RDCore.SDK.Protocol/RDCore.SDK.Protocol.csproj</RDCoreProtocolProject>
+    <!-- HexIDE shares Avalonia with its add-ins, so the add-in compiles against the version HexIDE ships and carries none of its own. -->
+    <HexIdeAvaloniaVersion>12.0.5</HexIdeAvaloniaVersion>
+  </PropertyGroup>
+
+  <ItemGroup Condition="'$(IsPackable)' != 'false'">
+    <None Include="$(MSBuildThisFileDirectory)assets/ducky.png" Pack="true" PackagePath="" Visible="false" />
+    <None Include="$(MSBuildThisFileDirectory)LICENSE-GPLv3.md" Pack="true" PackagePath="" Visible="false" />
+  </ItemGroup>
+
+</Project>

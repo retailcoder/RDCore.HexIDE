@@ -1,0 +1,15 @@
+{
+  "$comment": "The sources the add-in builds against until they are packages, each at a pinned commit. Get-Dependencies.ps1 fetches only the paths listed, into deps/<name>.",
+  "HexIDE": {
+    "repository": "https://github.com/retailcoder/HexIDE.git",
+    "commit": "f8dc6eb7dd51c2699f5e8a2691281d892ab81a05",
+    "note": "retailcoder/HexIDE feature/addin-server-registration (hexide-io/HexIDE#2821, seam A): the add-in contract with RegisterLanguageServer.",
+    "paths": [ "/global.json", "/Directory.Packages.props", "/IDE/Directory.Build.props", "/IDE/HexIDE.Core/" ]
+  },
+  "RDCore": {
+    "repository": "https://github.com/rubberduck-vba/RDCore.git",
+    "commit": "0e1afe066e7a2f3d9dc8f42c1516b93c8ddf2ccf",
+    "note": "rubberduck-vba/RDCore main after #586: RDCore.SDK.Protocol with the .rdproj model. Until it is on nuget.org.",
+    "paths": [ "/Directory.Build.props", "/RDCore.SDK.Protocol/" ]
+  }
+}
