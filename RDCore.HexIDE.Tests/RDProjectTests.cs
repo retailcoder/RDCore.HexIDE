@@ -289,6 +289,19 @@ public sealed class RDProjectTests : IDisposable
     }
 
     [TestMethod]
+    public async Task A_project_opened_once_the_add_in_is_going_is_refused_rather_than_followed()
+    {
+        WriteProject("""["src/Main.bas"]""", otherFiles: "[]");
+        var type = new RDCoreProjectType(new Prompts(), new ManualTime());
+        type.Dispose();
+
+        await Assert.ThrowsExactlyAsync<ObjectDisposedException>(
+            () => type.Type.OpenAsync(ProjectFile, new Changes(), TestContext.CancellationToken));
+
+        Assert.AreEqual(0, type.Watching);
+    }
+
+    [TestMethod]
     public void A_write_reported_before_the_first_read_ends_is_reread_after_it()
     {
         WriteProject("""["src/Main.bas"]""", otherFiles: "[]");

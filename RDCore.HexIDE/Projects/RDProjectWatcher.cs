@@ -463,6 +463,7 @@ internal sealed class RDCoreProjectType(IUserPrompts prompts, TimeProvider? time
 {
     private readonly ConcurrentDictionary<RDProjectWatcher, byte> watchers = new();
     private readonly TimeProvider time = time ?? TimeProvider.System;
+    private bool disposed;
 
     // The watcher tells from its timer's thread and doesn't wait for the user, so a failure to show it is traced here.
     private void Tell(string message) => prompts.TellAsync(message).ContinueWith(
@@ -478,8 +479,14 @@ internal sealed class RDCoreProjectType(IUserPrompts prompts, TimeProvider? time
         FileNames = [RDCore.SDK.Workspace.ProjectFile.FileName],
         OpenAsync = (path, changes, cancellationToken) => Task.Run(() =>
         {
-            var watcher = new RDProjectWatcher(path, changes, time, Tell);
-            watchers[watcher] = 0;
+            RDProjectWatcher watcher;
+            lock (watchers)
+            {
+                // The add-in is going: a project opened now would be followed by a watcher nothing stops.
+                ObjectDisposedException.ThrowIf(disposed, this);
+                watcher = new RDProjectWatcher(path, changes, time, Tell);
+                watchers[watcher] = 0;
+            }
             watcher.Stopped += () => watchers.TryRemove(watcher, out _);
             try
             {
@@ -501,6 +508,10 @@ internal sealed class RDCoreProjectType(IUserPrompts prompts, TimeProvider? time
 
     public void Dispose()
     {
+        lock (watchers)
+        {
+            disposed = true;
+        }
         foreach (var watcher in watchers.Keys)
         {
             watcher.Dispose();
