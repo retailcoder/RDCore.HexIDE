@@ -2,7 +2,7 @@
   "$comment": "The sources the add-in builds against until they are packages, each at a pinned commit. Get-Dependencies.ps1 fetches only the paths listed, into deps/<name>.",
   "HexIDE": {
     "repository": "https://github.com/retailcoder/HexIDE.git",
-    "commit": "98c0a30fac4a32c7059d21c61de3d281d9ff6ba6",
+    "commit": "2d3a095627ef439dce6ce3e76493611542cbc55b",
     "note": "retailcoder/HexIDE integration/rdcore-seams: the add-in seams merged, A (hexide-io/HexIDE#2821, RegisterLanguageServer), B (RegisterDebugLaunch) and C (RegisterProjectType).",
     "paths": [ "/global.json", "/Directory.Packages.props", "/IDE/Directory.Build.props", "/IDE/HexIDE.Core/" ]
   },
