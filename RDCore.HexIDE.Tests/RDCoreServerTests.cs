@@ -309,4 +309,22 @@ public sealed class RDCoreServerTests : IDisposable
         server.ProjectUnloaded(ProjectFile());
         File.Delete(manifest);
     }
+
+    // The lease is what would keep the version's folder from being replaced, and only Windows enforces it.
+    [TestMethod]
+    [OSCondition(OperatingSystems.Windows)]
+    public async Task A_held_version_that_lost_its_language_server_is_deployed_again_before_the_server_starts_and_held_again()
+    {
+        prompts.Answer = true;
+        using var server = Server(github: new FakeGitHub().Release("v0.1.0"));
+        await server.ProjectLoadedAsync(ProjectFile());
+        var version = Path.Combine(folder, "installed", "versions", "0.1.0");
+        File.Delete(Path.Combine(version, "RDCore.LanguageServer", "RDCore.LanguageServer.exe"));
+        Assert.IsNotNull(registered?.BeforeLaunch);
+
+        await registered.BeforeLaunch(TestContext.CancellationToken);
+
+        Assert.IsTrue(File.Exists(Path.Combine(version, "RDCore.LanguageServer", "RDCore.LanguageServer.exe")));
+        Assert.ThrowsExactly<IOException>(() => File.Delete(Path.Combine(version, "rdcore.json")), "held again");
+    }
 }

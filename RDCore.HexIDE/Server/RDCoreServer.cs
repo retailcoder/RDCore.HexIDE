@@ -25,6 +25,7 @@ internal sealed class RDCoreServer(IHexIdeHost host, PlatformSource platform, IU
     public static readonly TimeSpan BeforeLaunchTimeout = TimeSpan.FromMinutes(15);
 
     private readonly HashSet<string> openProjects = new(OperatingSystem.IsWindows() ? StringComparer.OrdinalIgnoreCase : StringComparer.Ordinal);
+    private readonly object leasing = new();
     private CancellationTokenSource? registering;
     private IAddinServerConnection? connection;
     private IDisposable? lease;
@@ -94,7 +95,7 @@ internal sealed class RDCoreServer(IHexIdeHost host, PlatformSource platform, IU
         {
             connection = host.RegisterLanguageServer(new AddinLanguageServer(Entry(launch))
             {
-                BeforeLaunch = token => platform.EnsureStillThereAsync(choice, token),
+                BeforeLaunch = token => BeforeLaunchAsync(choice, launch.ExecutablePath, token),
                 BeforeLaunchTimeout = BeforeLaunchTimeout,
                 AfterStart = async (current, token) =>
                 {
@@ -126,10 +127,33 @@ internal sealed class RDCoreServer(IHexIdeHost host, PlatformSource platform, IU
         _ => Failures.Reason(failure),
     };
 
+    // A version that isn't whole any more is deployed again without the lease, which would keep its folder from being
+    // replaced: nothing runs from it before this start. It is held again once it is back, while the server is still registered.
+    private async Task BeforeLaunchAsync(PlatformChoice choice, string languageServer, CancellationToken cancellationToken)
+    {
+        if (PlatformSource.IsWhole(choice, languageServer))
+        {
+            return;
+        }
+
+        ReleaseLease();
+        await platform.EnsureStillThereAsync(choice, languageServer, cancellationToken);
+        lock (leasing)
+        {
+            if (connection is not null && lease is null && choice.Installed is { } installed)
+            {
+                lease = PlatformInstaller.PlatformInstaller.Hold(installed);
+            }
+        }
+    }
+
     private void ReleaseLease()
     {
-        lease?.Dispose();
-        lease = null;
+        lock (leasing)
+        {
+            lease?.Dispose();
+            lease = null;
+        }
     }
 
     /// <summary>

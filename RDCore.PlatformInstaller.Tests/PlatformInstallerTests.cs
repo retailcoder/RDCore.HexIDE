@@ -215,6 +215,20 @@ public sealed class PlatformInstallerTests : IDisposable
     }
 
     [TestMethod]
+    public async Task A_platform_in_use_that_has_lost_its_language_server_is_no_platform_and_is_deployed_again()
+    {
+        var installer = Installer(new FakeGitHub().Release("v0.1.0"));
+        var installed = await InstallLatest(installer);
+        var languageServer = Path.Combine(installed.Root, "RDCore.LanguageServer", "RDCore.LanguageServer.exe");
+        File.Delete(languageServer);
+
+        Assert.IsNull(installer.Current);
+        await InstallLatest(installer);
+        Assert.AreEqual(installed, installer.Current);
+        Assert.IsTrue(File.Exists(languageServer));
+    }
+
+    [TestMethod]
     public async Task An_update_keeps_the_version_before_it_and_removes_older_ones()
     {
         await InstallLatest(Installer(new FakeGitHub().Release("v0.1.0")));

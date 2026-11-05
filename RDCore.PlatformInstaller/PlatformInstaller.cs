@@ -64,7 +64,7 @@ public sealed class PlatformInstaller
             }
 
             var root = VersionRoot(version);
-            return File.Exists(Path.Combine(root, "rdcore.json")) ? new InstalledPlatform(version, root) : null;
+            return IsDeployed(root) ? new InstalledPlatform(version, root) : null;
         }
     }
 
@@ -106,7 +106,7 @@ public sealed class PlatformInstaller
         using var gate = await AcquireLockAsync(cancellationToken).ConfigureAwait(false);
 
         var root = VersionRoot(release.Version);
-        if (!File.Exists(Path.Combine(root, "rdcore.json")))
+        if (!IsDeployed(root))
         {
             await DeployAsync(release, root, progress, cancellationToken).ConfigureAwait(false);
         }
@@ -161,7 +161,7 @@ public sealed class PlatformInstaller
             EnsurePlatform(unpacked, release);
 
             progress?.Report(new InstallProgress(InstallStage.Deploying));
-            // A folder of this version without its manifest is what's left of a deployment someone broke: it is replaced.
+            // A folder of this version that isn't a whole platform is what's left of a deployment someone broke: it is replaced.
             DeleteFolder(root);
             Directory.CreateDirectory(Path.GetDirectoryName(root)!);
             Directory.Move(unpacked, root);
@@ -245,13 +245,25 @@ public sealed class PlatformInstaller
         }
     }
 
-    // A platform root holds rdcore.json at its top, and the language server where that names it, inside the root.
     private static void EnsurePlatform(string root, PlatformRelease release)
+    {
+        if (Flaw(root) is { } flaw)
+        {
+            throw NotAPlatform(release, flaw.Why, flaw.Inner);
+        }
+    }
+
+    // A version is deployed while its folder is still a whole platform: one whose language server was removed is deployed again.
+    private static bool IsDeployed(string root) => Flaw(root) is null;
+
+    // A platform root holds rdcore.json at its top, and the language server where that names it, inside the root: why the
+    // folder isn't one, or null when it is.
+    private static (string Why, Exception? Inner)? Flaw(string root)
     {
         var manifestPath = Path.Combine(root, "rdcore.json");
         if (!File.Exists(manifestPath))
         {
-            throw NotAPlatform(release, "it has no rdcore.json at its root");
+            return ("it has no rdcore.json at its root", null);
         }
 
         string? languageServer;
@@ -261,12 +273,12 @@ public sealed class PlatformInstaller
         }
         catch (Exception ex) when (ex is JsonException or InvalidOperationException or FormatException)
         {
-            throw NotAPlatform(release, $"its rdcore.json can't be read: {ex.Message}", ex);
+            return ($"its rdcore.json can't be read: {ex.Message}", ex);
         }
 
         if (string.IsNullOrWhiteSpace(languageServer))
         {
-            throw NotAPlatform(release, "its rdcore.json names no language server");
+            return ("its rdcore.json names no language server", null);
         }
 
         var full = Path.GetFullPath(Path.Combine(root, languageServer.Replace('\\', '/').Replace('/', Path.DirectorySeparatorChar)));
@@ -274,13 +286,15 @@ public sealed class PlatformInstaller
         var comparison = OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal;
         if (Path.IsPathRooted(languageServer) || !full.StartsWith(prefix, comparison))
         {
-            throw NotAPlatform(release, $"its rdcore.json names a language server outside the platform, {languageServer}");
+            return ($"its rdcore.json names a language server outside the platform, {languageServer}", null);
         }
 
         if (!File.Exists(full) && !File.Exists(full + ".exe"))
         {
-            throw NotAPlatform(release, $"it has no language server at {languageServer}, which its rdcore.json names");
+            return ($"it has no language server at {languageServer}, which its rdcore.json names", null);
         }
+
+        return null;
     }
 
     private static PlatformInstallException NotAPlatform(PlatformRelease release, string why, Exception? inner = null) =>
