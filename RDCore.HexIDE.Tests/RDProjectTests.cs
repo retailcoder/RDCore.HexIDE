@@ -410,6 +410,73 @@ public sealed class RDProjectTests : IDisposable
     }
 
     [TestMethod]
+    public void A_watcher_an_error_turned_off_is_started_again_and_reads_what_it_missed()
+    {
+        WriteProject("""["src/Main.bas"]""", otherFiles: "[]");
+        var changes = new Changes();
+        var time = new ManualTime();
+        using var watcher = Following(changes, time);
+        Write("src/Helpers.bas", "Attribute VB_Name = \"Helpers\"\r\n");
+        WriteProject("""["src/Main.bas", "src/Helpers.bas"]""", otherFiles: "[]");
+
+        watcher.Lost(new IOException("The specified network name is no longer available."));
+        time.Advance(RDProjectWatcher.Settle);
+
+        Assert.IsTrue(watcher.IsFollowing);
+        CollectionAssert.AreEqual(new[] { $"added {Full("src/Helpers.bas")} StandardModule" }, changes.Calls);
+        Assert.AreEqual(0, told.Count);
+    }
+
+    [TestMethod]
+    public void A_watcher_that_can_t_be_started_again_is_told_to_the_user()
+    {
+        WriteProject("""["src/Main.bas"]""", otherFiles: "[]");
+        using var watcher = Following(new Changes(), new ManualTime());
+        var moved = root + "-moved";
+        Directory.Move(root, moved);
+        try
+        {
+            watcher.Lost(new IOException("The specified network name is no longer available."));
+        }
+        finally
+        {
+            Directory.Move(moved, root);
+        }
+
+        Assert.IsFalse(watcher.IsFollowing);
+        CollectionAssert.AreEqual(new[] { Strings.ProjectNotFollowed(ProjectFile) }, told);
+    }
+
+    [TestMethod]
+    public void A_project_folder_that_comes_back_is_followed_and_read_again()
+    {
+        WriteProject("""["src/Main.bas"]""", otherFiles: "[]");
+        var time = new ManualTime();
+        using var watcher = Following(new Changes(), time);
+        var moved = root + "-moved";
+        Directory.Move(root, moved);
+        try
+        {
+            watcher.Schedule();
+            Exhaust(time);
+        }
+        finally
+        {
+            Directory.Move(moved, root);
+        }
+
+        watcher.FolderBack();
+        Assert.IsTrue(watcher.IsFollowing);
+        time.Advance(RDProjectWatcher.Settle);
+        // Read again, so a later loss is news again.
+        File.Delete(ProjectFile);
+        watcher.Noticed(ProjectFile);
+        Exhaust(time);
+
+        CollectionAssert.AreEqual(new[] { Strings.ProjectFileGone(ProjectFile), Strings.ProjectFileGone(ProjectFile) }, told);
+    }
+
+    [TestMethod]
     public void A_module_written_after_the_project_lists_it_is_read_when_it_appears()
     {
         WriteProject("""["src/Main.bas", "src/Classes/Late.cls"]""");

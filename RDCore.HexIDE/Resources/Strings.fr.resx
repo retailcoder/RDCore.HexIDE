@@ -89,6 +89,9 @@ Télécharger RDCore {0} maintenant? Le téléchargement fait environ {1}, provi
   <data name="ProjectFileGone" xml:space="preserve">
     <value>{0} a disparu : HexIDE ne montrera pas les changements aux membres du projet tant qu'il ne sera pas revenu.</value>
   </data>
+  <data name="ProjectNotFollowed" xml:space="preserve">
+    <value>RDCore ne peut plus suivre les changements à {0} : HexIDE ne montrera pas les changements aux membres du projet tant que le projet ne sera pas rouvert.</value>
+  </data>
   <data name="ProjectFileUnreadable" xml:space="preserve">
     <value>RDCore n'a pas pu lire {0} après son changement : HexIDE pourrait ne pas montrer les derniers membres du projet. Il sera relu à son prochain changement.</value>
   </data>

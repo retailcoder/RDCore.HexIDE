@@ -63,6 +63,25 @@ internal sealed class RDProjectWatcher : IDisposable
     /// </summary>
     public void Start()
     {
+        Follow();
+        closed = changes.Closed.Register(Dispose);
+    }
+
+    /// <summary>Whether the file system reports changes to the project's folder.</summary>
+    internal bool IsFollowing
+    {
+        get
+        {
+            lock (gate)
+            {
+                return files is { EnableRaisingEvents: true };
+            }
+        }
+    }
+
+    // Starts the file system's watchers, or starts them again in place of the ones there were.
+    private void Follow()
+    {
         var root = Path.GetDirectoryName(path)!;
         // The whole folder: the project file, and the modules it lists before they are written.
         var below = new FileSystemWatcher(root)
@@ -81,16 +100,29 @@ internal sealed class RDProjectWatcher : IDisposable
             Noticed(e.FullPath);
         };
         below.Error += (_, e) => Lost(e.GetException());
-        // The folder itself, which a rename or a delete takes the project file away with.
-        var around = Path.GetDirectoryName(root) is { } parent
-            ? new FileSystemWatcher(parent, Path.GetFileName(root)) { NotifyFilter = NotifyFilters.DirectoryName }
-            : null;
-        if (around is not null)
+        // The folder itself, which a rename or a delete takes the project file away with, and which may come back.
+        FileSystemWatcher? around = null;
+        if (Path.GetDirectoryName(root) is { } parent)
         {
-            around.Renamed += (_, _) => Schedule();
+            around = new FileSystemWatcher(parent, Path.GetFileName(root)) { NotifyFilter = NotifyFilters.DirectoryName };
+            around.Renamed += (_, e) =>
+            {
+                if (RDProject.PathComparer.Equals(e.FullPath, root))
+                {
+                    FolderBack();
+                }
+                else
+                {
+                    Schedule();
+                }
+            };
             around.Deleted += (_, _) => Schedule();
+            around.Created += (_, _) => FolderBack();
+            around.Error += (_, e) => Lost(e.GetException());
         }
 
+        FileSystemWatcher? oldBelow;
+        FileSystemWatcher? oldAround;
         lock (gate)
         {
             if (disposed)
@@ -100,16 +132,40 @@ internal sealed class RDProjectWatcher : IDisposable
                 return;
             }
 
-            files = below;
-            folder = around;
+            (oldBelow, oldAround) = (files, folder);
+            (files, folder) = (below, around);
         }
+        oldBelow?.Dispose();
+        oldAround?.Dispose();
         below.EnableRaisingEvents = true;
         if (around is not null)
         {
             around.EnableRaisingEvents = true;
         }
-        closed = changes.Closed.Register(Dispose);
     }
+
+    // Starts the watchers again, which an error turned off or a folder that went took with it, and rereads the project
+    // for what they missed; tells the user when they can't be.
+    private void FollowAgain()
+    {
+        try
+        {
+            Follow();
+        }
+        catch (Exception ex) when (ex is ArgumentException or IOException or UnauthorizedAccessException)
+        {
+            Trace.TraceWarning($"RDCore for HexIDE can no longer follow {path}: {ex.Message}");
+            if (IsOpen)
+            {
+                Tell(Strings.ProjectNotFollowed(path));
+            }
+            return;
+        }
+        Schedule();
+    }
+
+    /// <summary>What the project's folder coming back does: it is followed again, and the project reread.</summary>
+    internal void FolderBack() => FollowAgain();
 
     /// <summary>
     /// What the file system's report of a change to <paramref name="changed"/> does: rereads the project when that is the
@@ -127,11 +183,21 @@ internal sealed class RDProjectWatcher : IDisposable
         }
     }
 
-    /// <summary>What the file system's losing its reports does: the reread finds whatever they said.</summary>
+    /// <summary>
+    /// What an error of the file system's watcher does. An overflow lost reports, and the reread finds whatever they said; any
+    /// other error turned the watcher off, so it is started again too.
+    /// </summary>
     internal void Lost(Exception? error)
     {
         Trace.TraceWarning($"RDCore for HexIDE missed changes in the folder of {path}, and reads it again: {error?.Message}");
-        Schedule();
+        if (error is InternalBufferOverflowException)
+        {
+            Schedule();
+        }
+        else
+        {
+            FollowAgain();
+        }
     }
 
     /// <summary>The project as it was first read, which the changes after it are told against.</summary>
@@ -194,15 +260,20 @@ internal sealed class RDProjectWatcher : IDisposable
 
             if (message is not null)
             {
-                try
-                {
-                    tell(message);
-                }
-                catch (Exception ex)
-                {
-                    Trace.TraceError($"RDCore for HexIDE couldn't tell the user \"{message}\": {ex}");
-                }
+                Tell(message);
             }
+        }
+    }
+
+    private void Tell(string message)
+    {
+        try
+        {
+            tell(message);
+        }
+        catch (Exception ex)
+        {
+            Trace.TraceError($"RDCore for HexIDE couldn't tell the user \"{message}\": {ex}");
         }
     }
 
