@@ -51,7 +51,9 @@ internal sealed class RDProjectWatcher : IDisposable
         lock (gate)
         {
             if (!disposed)
+            {
                 settle.Change(Settle, Timeout.InfiniteTimeSpan);
+            }
         }
     }
 
@@ -61,7 +63,10 @@ internal sealed class RDProjectWatcher : IDisposable
         lock (gate)
         {
             if (disposed)
+            {
                 return;
+            }
+
             RDProject now;
             try
             {
@@ -70,7 +75,9 @@ internal sealed class RDProjectWatcher : IDisposable
             catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidDataException)
             {
                 if (++attempt < Attempts)
+                {
                     settle.Change(Settle, Timeout.InfiniteTimeSpan);
+                }
                 else
                 {
                     attempt = 0;
@@ -89,7 +96,10 @@ internal sealed class RDProjectWatcher : IDisposable
         lock (gate)
         {
             if (disposed)
+            {
                 return;
+            }
+
             disposed = true;
         }
         watcher.Dispose();
@@ -121,19 +131,33 @@ internal static class RDProjectChanges
         foreach (var gone in removed.ToList())
         {
             if (gone.Digest is null || File.Exists(gone.Path))
+            {
                 continue;
+            }
+
             if (added.FirstOrDefault(joined => joined.Kind == gone.Kind && joined.Digest == gone.Digest) is not { } moved)
+            {
                 continue;
+            }
+
             changes.MemberMoved(gone.Path, moved.Path);
             removed.Remove(gone);
             added.Remove(moved);
         }
         foreach (var gone in removed)
+        {
             changes.MemberRemoved(gone.Path);
+        }
+
         foreach (var joined in added)
+        {
             changes.MemberAdded(new AddinProjectMember(joined.Path, joined.Kind));
+        }
+
         if (!before.References.SequenceEqual(after.References))
+        {
             changes.ReferencesChanged(after.References);
+        }
     }
 }
 
@@ -168,6 +192,8 @@ internal sealed class RDCoreProjectType : IDisposable
     public void Dispose()
     {
         foreach (var watcher in watchers.Keys)
+        {
             watcher.Dispose();
+        }
     }
 }

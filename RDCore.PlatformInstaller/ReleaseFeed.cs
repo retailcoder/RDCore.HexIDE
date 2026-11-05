@@ -12,40 +12,74 @@ public sealed class ReleaseFeed(HttpClient http, PlatformInstallerOptions option
     internal const string ChecksumsAsset = "SHA256SUMS";
 
     /// <summary>
-    /// The newest release the channel offers that has a platform for the runtime identifier, or null when none has.
+    /// The newest release the channel offers that has a platform for the runtime identifier, or null when none has. The stable
+    /// channel offers no release whose version is a prerelease's, whatever the release says it is.
     /// </summary>
-    /// <exception cref="HttpRequestException">The releases couldn't be read.</exception>
-    public async Task<PlatformRelease?> FindLatestAsync(CancellationToken cancellationToken)
+    /// <exception cref="HttpRequestException">The releases couldn't be reached.</exception>
+    /// <exception cref="PlatformInstallException">What GitHub answered isn't a list of releases.</exception>
+    public async Task<PlatformRelease?> FindLatestAsync(CancellationToken cancellationToken) =>
+        (await ReadAsync(cancellationToken).ConfigureAwait(false))
+            .Where(release => options.Channel == ReleaseChannel.Preview || !(release.Prerelease || release.Release.Version.IsPrerelease))
+            .Select(release => release.Release)
+            .MaxBy(release => release.Version);
+
+    /// <summary>
+    /// The published release of <paramref name="version"/> for the runtime identifier, whatever the channel, or null when there
+    /// is none: it was taken down, or never had a platform for this machine.
+    /// </summary>
+    /// <exception cref="HttpRequestException">The releases couldn't be reached.</exception>
+    /// <exception cref="PlatformInstallException">What GitHub answered isn't a list of releases.</exception>
+    public async Task<PlatformRelease?> FindAsync(PlatformVersion version, CancellationToken cancellationToken) =>
+        (await ReadAsync(cancellationToken).ConfigureAwait(false))
+            .Select(release => release.Release)
+            .FirstOrDefault(release => release.Version.Equals(version));
+
+    private async Task<IReadOnlyList<(PlatformRelease Release, bool Prerelease)>> ReadAsync(CancellationToken cancellationToken)
     {
         using var request = new HttpRequestMessage(HttpMethod.Get,
             new Uri(options.ApiBase, $"repos/{options.Repository}/releases?per_page=100"));
         request.Headers.UserAgent.Add(new ProductInfoHeaderValue("RDCore.PlatformInstaller", "1"));
         request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/vnd.github+json"));
-        using var response = await http.SendAsync(request, cancellationToken);
+        using var response = await http.SendAsync(request, cancellationToken).ConfigureAwait(false);
         response.EnsureSuccessStatusCode();
-        await using var body = await response.Content.ReadAsStreamAsync(cancellationToken);
-        using var releases = await JsonDocument.ParseAsync(body, cancellationToken: cancellationToken);
-
-        PlatformRelease? latest = null;
-        foreach (var release in releases.RootElement.EnumerateArray())
+        await using var body = await response.Content.ReadAsStreamAsync(cancellationToken).ConfigureAwait(false);
+        try
         {
-            if (Read(release) is { } candidate && (latest is null || candidate.Version.CompareTo(latest.Version) > 0))
-                latest = candidate;
+            using var releases = await JsonDocument.ParseAsync(body, cancellationToken: cancellationToken).ConfigureAwait(false);
+            List<(PlatformRelease, bool)> published = [];
+            foreach (var release in releases.RootElement.EnumerateArray())
+            {
+                if (Read(release) is { } candidate)
+                {
+                    published.Add(candidate);
+                }
+            }
+            return published;
         }
-        return latest;
+        catch (Exception ex) when (ex is JsonException or InvalidOperationException or KeyNotFoundException or FormatException)
+        {
+            throw new PlatformInstallException(InstallFailure.UnreadableReleases,
+                $"What GitHub answered for {options.Repository}'s releases isn't a list of releases: {ex.Message}", ex);
+        }
     }
 
-    private PlatformRelease? Read(JsonElement release)
+    private (PlatformRelease, bool)? Read(JsonElement release)
     {
         if (release.TryGetProperty("draft", out var draft) && draft.GetBoolean())
+        {
             return null;
+        }
+
         var prerelease = release.TryGetProperty("prerelease", out var flag) && flag.GetBoolean();
-        if (prerelease && options.Channel == ReleaseChannel.Stable)
-            return null;
         if (!release.TryGetProperty("tag_name", out var tag) || !PlatformVersion.TryParse(tag.GetString(), out var version))
+        {
             return null;
+        }
+
         if (!release.TryGetProperty("assets", out var assets))
+        {
             return null;
+        }
 
         // The zip is named by the platform manifest's version and the runtime identifier it was built for.
         var archiveSuffix = $"-{options.RuntimeIdentifier}.zip";
@@ -55,12 +89,28 @@ public sealed class ReleaseFeed(HttpClient http, PlatformInstallerOptions option
         {
             var name = asset.GetProperty("name").GetString() ?? "";
             if (!Uri.TryCreate(asset.GetProperty("browser_download_url").GetString(), UriKind.Absolute, out var url))
+            {
                 continue;
+            }
+
             if (name == ChecksumsAsset)
+            {
                 checksums = url;
+            }
             else if (name.StartsWith("rdcore-", StringComparison.Ordinal) && name.EndsWith(archiveSuffix, StringComparison.Ordinal))
+            {
                 archive = (url, asset.TryGetProperty("size", out var size) ? size.GetInt64() : 0);
+            }
         }
-        return archive is { } zip && checksums is not null ? new PlatformRelease(version, zip.Url, zip.Size, checksums) : null;
+
+        if (archive is not { } zip || checksums is null || !Trusted(zip.Url) || !Trusted(checksums))
+        {
+            return null;
+        }
+
+        return (new PlatformRelease(version, zip.Url, zip.Size, checksums), prerelease);
     }
+
+    private bool Trusted(Uri url) =>
+        url.Scheme == Uri.UriSchemeHttps && options.AssetHosts.Contains(url.Host, StringComparer.OrdinalIgnoreCase);
 }

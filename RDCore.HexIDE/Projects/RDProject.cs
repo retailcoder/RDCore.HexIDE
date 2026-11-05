@@ -64,7 +64,9 @@ internal sealed partial record RDProject(string Name, IReadOnlyList<RDProjectMem
         foreach (var other in project.OtherFiles)
         {
             if (Within(root, other.RelativeUri) is { } full)
+            {
                 members.Add(new RDProjectMember(full, AddinMemberKind.Other, ReadMember(full).Digest));
+            }
         }
 
         return new RDProject(name, members,
@@ -80,7 +82,10 @@ internal sealed partial record RDProject(string Name, IReadOnlyList<RDProjectMem
     internal static string? Within(string root, string relative)
     {
         if (string.IsNullOrWhiteSpace(relative) || System.IO.Path.IsPathRooted(relative))
+        {
             return null;
+        }
+
         var full = System.IO.Path.GetFullPath(System.IO.Path.Combine(root,
             relative.Replace('\\', System.IO.Path.DirectorySeparatorChar).Replace('/', System.IO.Path.DirectorySeparatorChar)));
         var prefix = System.IO.Path.TrimEndingDirectorySeparator(root) + System.IO.Path.DirectorySeparatorChar;

@@ -2,6 +2,7 @@ using System.Text.Json;
 using HexIDE.Addins;
 using NSubstitute;
 using RDCore.HexIDE.Platform;
+using RDCore.HexIDE.Resources;
 using RDCore.HexIDE.Server;
 using RDCore.PlatformInstaller;
 using RDCore.PlatformInstaller.Tests;
@@ -201,41 +202,62 @@ public sealed class RDCoreServerTests : IDisposable
         host.DidNotReceiveWithAnyArgs().RegisterLanguageServer(default!);
     }
 
-    private sealed class Prompts : IUserPrompts
+    [TestMethod]
+    public async Task A_project_reopened_while_the_user_is_asked_is_asked_nothing_more_and_gets_the_one_server()
     {
-        public bool Answer { get; set; }
-        public TaskCompletionSource<bool>? Pending { get; set; }
-        public List<PlatformRelease> Asked { get; } = [];
-        public List<string> Told { get; } = [];
-        public bool InstallShown { get; private set; }
+        var github = new FakeGitHub().Release("v0.1.0");
+        prompts.Pending = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        using var server = Server(github: github);
 
-        public Task<bool> ConfirmDownloadAsync(PlatformRelease release, string target)
-        {
-            Asked.Add(release);
-            return Pending?.Task ?? Task.FromResult(Answer);
-        }
+        var first = server.ProjectLoadedAsync(ProjectFile());
+        server.ProjectUnloaded(ProjectFile());
+        var again = server.ProjectLoadedAsync(ProjectFile());
+        prompts.Pending.SetResult(true);
+        await Assert.ThrowsAsync<OperationCanceledException>(() => first);
+        await again;
 
-        public Task TellAsync(string message)
-        {
-            Told.Add(message);
-            return Task.CompletedTask;
-        }
+        Assert.AreEqual(1, prompts.Asked.Count, "one question, for both");
+        host.ReceivedWithAnyArgs(1).RegisterLanguageServer(default!);
+    }
 
-        public IInstallView ShowInstall(PlatformRelease release)
-        {
-            InstallShown = true;
-            return new View();
-        }
+    [TestMethod]
+    public async Task Not_now_holds_until_HexIDE_restarts()
+    {
+        prompts.Answer = false;
+        using var server = Server(github: new FakeGitHub().Release("v0.1.0"));
 
-        private sealed class View : IInstallView
-        {
-            public void Report(InstallProgress value)
-            {
-            }
+        await server.ProjectLoadedAsync(ProjectFile());
+        server.ProjectUnloaded(ProjectFile());
+        await server.ProjectLoadedAsync(ProjectFile("Invoices"));
 
-            public void Dispose()
-            {
-            }
-        }
+        Assert.AreEqual(1, prompts.Asked.Count);
+        host.DidNotReceiveWithAnyArgs().RegisterLanguageServer(default!);
+    }
+
+    [TestMethod]
+    public async Task A_server_HexIDE_won_t_take_is_reported_to_the_user()
+    {
+        host.RegisterLanguageServer(Arg.Any<AddinLanguageServer>()).Returns(_ => throw new InvalidOperationException("the id is taken"));
+        using var server = Server(BuiltPlatform());
+
+        await server.ProjectLoadedAsync(ProjectFile());
+
+        Assert.AreEqual(Strings.ServerNotRegistered("the id is taken"), prompts.Told.Single());
+        Assert.IsNull(server.Connection);
+    }
+
+    // Only Windows keeps a file that is open from being deleted, which is what the lease relies on.
+    [TestMethod]
+    [OSCondition(OperatingSystems.Windows)]
+    public async Task The_installed_version_a_server_is_registered_from_is_held_until_the_server_goes()
+    {
+        prompts.Answer = true;
+        using var server = Server(github: new FakeGitHub().Release("v0.1.0"));
+        await server.ProjectLoadedAsync(ProjectFile());
+        var manifest = Path.Combine(folder, "installed", "versions", "0.1.0", "rdcore.json");
+
+        Assert.ThrowsExactly<IOException>(() => File.Delete(manifest));
+        server.ProjectUnloaded(ProjectFile());
+        File.Delete(manifest);
     }
 }

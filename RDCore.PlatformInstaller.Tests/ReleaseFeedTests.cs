@@ -45,5 +45,48 @@ public class ReleaseFeedTests
         Assert.IsNull(await Feed(new FakeGitHub()).FindLatestAsync(TestContext.CancellationToken));
     }
 
+    [TestMethod]
+    public async Task The_stable_channel_never_offers_a_prerelease_s_version_even_one_released_as_a_release()
+    {
+        var github = new FakeGitHub().Release("v0.1.0").Release("v0.2.0-rc.1", prerelease: false);
+
+        Assert.AreEqual("0.1.0", (await Feed(github).FindLatestAsync(TestContext.CancellationToken))?.Version.Text);
+    }
+
+    [TestMethod]
+    public async Task A_release_whose_assets_are_anywhere_but_GitHub_is_not_offered()
+    {
+        var github = new FakeGitHub().Release("v0.1.0").Release("v0.2.0", host: "downloads.example.com");
+
+        Assert.AreEqual("0.1.0", (await Feed(github).FindLatestAsync(TestContext.CancellationToken))?.Version.Text);
+    }
+
+    [TestMethod]
+    public async Task A_version_is_found_whatever_the_channel_and_a_version_taken_down_is_not()
+    {
+        var github = new FakeGitHub().Release("v0.1.0").Release("v0.2.0-alpha.1", prerelease: true);
+
+        Assert.AreEqual("0.2.0-alpha.1",
+            (await Feed(github).FindAsync(PlatformVersion.Parse("0.2.0-alpha.1"), TestContext.CancellationToken))?.Version.Text);
+        Assert.IsNull(await Feed(github).FindAsync(PlatformVersion.Parse("0.1.1"), TestContext.CancellationToken));
+    }
+
+    [TestMethod]
+    public async Task An_answer_that_isn_t_a_list_of_releases_is_refused_as_unreadable()
+    {
+        var feed = new ReleaseFeed(new HttpClient(new Answering("""{ "message": "API rate limit exceeded" }""")),
+            new PlatformInstallerOptions { Root = Path.GetTempPath() });
+
+        var refusal = await Assert.ThrowsExactlyAsync<PlatformInstallException>(() => feed.FindLatestAsync(TestContext.CancellationToken));
+
+        Assert.AreEqual(InstallFailure.UnreadableReleases, refusal.Failure);
+    }
+
+    private sealed class Answering(string json) : HttpMessageHandler
+    {
+        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken) =>
+            Task.FromResult(new HttpResponseMessage(System.Net.HttpStatusCode.OK) { Content = new StringContent(json) });
+    }
+
     public TestContext TestContext { get; set; } = null!;
 }

@@ -3,64 +3,159 @@ using RDCore.PlatformInstaller;
 
 namespace RDCore.HexIDE.Platform;
 
+/// <summary>The platform a server runs from: its root, and the installed version when it is one, not a development root.</summary>
+internal sealed record PlatformChoice(string Root, InstalledPlatform? Installed);
+
 /// <summary>
-/// The platform root RDCore runs from: the development override when one is set, the installed platform otherwise, and,
-/// when there is none, the newest release, downloaded only once the user agrees.
+/// The platform RDCore runs from: the development override when one is set, the installed platform otherwise, and, when
+/// there is none, the newest release, downloaded only once the user agrees.
 /// </summary>
+/// <remarks>
+/// <para>
+/// <b>One question at a time.</b> RDCore projects opened while the user is asked share the one question and its answer.
+/// "Not now" holds until HexIDE restarts: no RDCore project opened after it asks again.
+/// </para>
+/// <para>
+/// <b>Off the UI thread.</b> The installation runs on the thread pool; only its progress and its outcome reach the UI.
+/// </para>
+/// <para>
+/// <b>Never silent.</b> Whatever stops RDCore from having a platform, the user is told why, in their language, unless it was
+/// their own "Not now".
+/// </para>
+/// </remarks>
 internal sealed class PlatformSource(AddinSettings settings, PlatformInstaller.PlatformInstaller installer, IUserPrompts prompts)
 {
+    private readonly object gate = new();
+    private Task<bool>? asking;
+    private bool declined;
+
     /// <summary>
-    /// The root to run, or null when there is none to run: the user declined the download, or there is nothing to download, or
-    /// it failed. The user has been told why in every case but their own refusal.
+    /// The platform to run, or null when there is none to run: the user declined the download, or there is nothing to download,
+    /// or it failed, which the user has been told.
     /// </summary>
-    public async Task<string?> GetRootAsync(CancellationToken cancellationToken)
+    public async Task<PlatformChoice?> GetAsync(CancellationToken cancellationToken)
     {
         if (settings.PlatformRoot is { Length: > 0 } development)
-            return development;
+        {
+            return new PlatformChoice(development, null);
+        }
+
         if (installer.Current is { } installed)
-            return installed.Root;
+        {
+            return new PlatformChoice(installed.Root, installed);
+        }
 
-        PlatformRelease? release;
-        try
+        lock (gate)
         {
-            release = await installer.Feed.FindLatestAsync(cancellationToken);
+            if (declined)
+            {
+                return null;
+            }
         }
-        catch (HttpRequestException ex)
-        {
-            await prompts.TellAsync(Strings.ReleasesUnreachable(ex.Message));
-            return null;
-        }
-        if (release is null)
-        {
-            await prompts.TellAsync(Strings.NoRelease);
-            return null;
-        }
-        if (!await prompts.ConfirmDownloadAsync(release, PlatformInstallerOptions.DefaultRoot))
-            return null;
-        // The project may have closed while the question was open: then nothing is downloaded for it.
-        cancellationToken.ThrowIfCancellationRequested();
 
         try
         {
-            using var view = prompts.ShowInstall(release);
-            return (await installer.InstallAsync(release, view, cancellationToken)).Root;
+            var release = await installer.Feed.FindLatestAsync(cancellationToken);
+            if (release is null)
+            {
+                await prompts.TellAsync(Strings.NoRelease);
+                return null;
+            }
+
+            if (!await AskAsync(release))
+            {
+                return null;
+            }
+
+            // The project may have closed while the question was open: then nothing is downloaded for it.
+            cancellationToken.ThrowIfCancellationRequested();
+            var deployed = await InstallAsync(release, cancellationToken);
+            return new PlatformChoice(deployed.Root, deployed);
         }
-        catch (Exception ex) when (ex is HttpRequestException or InvalidDataException or IOException or UnauthorizedAccessException)
+        catch (Exception ex) when (Reason(ex, cancellationToken) is { } reason)
         {
-            await prompts.TellAsync(Strings.InstallFailed(ex.Message));
+            await prompts.TellAsync(reason);
             return null;
         }
     }
 
     /// <summary>
-    /// Makes sure the platform at <paramref name="root"/> is still there before its server starts, and deploys the release
-    /// again when it has gone: someone deleted it while the project was open.
+    /// Makes sure the platform <paramref name="choice"/> names is still there before its server starts. When it has gone, the
+    /// same version is deployed again, as the server's launch names it, once the user agrees.
     /// </summary>
-    public async Task EnsureStillThereAsync(string root, CancellationToken cancellationToken)
+    /// <exception cref="InvalidOperationException">It is gone and can't be had again; the message says why, for HexIDE to show.</exception>
+    public async Task EnsureStillThereAsync(PlatformChoice choice, CancellationToken cancellationToken)
     {
-        if (File.Exists(Path.Combine(root, "rdcore.json")) || settings.PlatformRoot is { Length: > 0 })
+        if (File.Exists(Path.Combine(choice.Root, "rdcore.json")))
+        {
             return;
-        if (await installer.Feed.FindLatestAsync(cancellationToken) is { } release)
-            await installer.InstallAsync(release, null, cancellationToken);
+        }
+
+        if (choice.Installed is not { } installed)
+        {
+            throw new InvalidOperationException(Strings.PlatformRootUnusable(choice.Root, Strings.NoManifest));
+        }
+
+        try
+        {
+            var release = await installer.Feed.FindAsync(installed.Version, cancellationToken)
+                ?? throw new InvalidOperationException(Strings.VersionGone(installed.Version.Text));
+            if (!await AskAsync(release))
+            {
+                throw new InvalidOperationException(Strings.PlatformGone(installed.Version.Text));
+            }
+
+            await InstallAsync(release, cancellationToken);
+        }
+        catch (Exception ex) when (ex is not InvalidOperationException && Reason(ex, cancellationToken) is { } reason)
+        {
+            throw new InvalidOperationException(reason, ex);
+        }
     }
+
+    // Asked once for every project that wants it at the same time: a question still open is shared, and one answered is never
+    // answered again, so a later question is asked afresh.
+    private Task<bool> AskAsync(PlatformRelease release)
+    {
+        lock (gate)
+        {
+            if (asking is { IsCompleted: false } open)
+            {
+                return open;
+            }
+
+            return asking = Ask(release);
+        }
+
+        async Task<bool> Ask(PlatformRelease asked)
+        {
+            var agreed = await prompts.ConfirmDownloadAsync(asked, PlatformInstallerOptions.DefaultRoot);
+            lock (gate)
+            {
+                declined = !agreed;
+            }
+            return agreed;
+        }
+    }
+
+    private async Task<InstalledPlatform> InstallAsync(PlatformRelease release, CancellationToken cancellationToken)
+    {
+        using var view = prompts.ShowInstall(release);
+        return await Task.Run(() => installer.InstallAsync(release, view, cancellationToken), cancellationToken);
+    }
+
+    // What to tell the user of a failure, in their language; null for what isn't one to tell, as a cancellation is.
+    private static string? Reason(Exception failure, CancellationToken cancellationToken) => failure switch
+    {
+        OperationCanceledException when cancellationToken.IsCancellationRequested => null,
+        // HttpClient's own time limit is a cancellation nobody asked for.
+        OperationCanceledException => Strings.TimedOut,
+        HttpRequestException ex => Strings.ReleasesUnreachable(ex.Message),
+        PlatformInstallException { Failure: InstallFailure.ChecksumMismatch } => Strings.ChecksumMismatch,
+        PlatformInstallException { Failure: InstallFailure.NotAPlatform } => Strings.NotAPlatform,
+        PlatformInstallException { Failure: InstallFailure.TooLarge } => Strings.TooLarge,
+        PlatformInstallException { Failure: InstallFailure.UnreadableReleases } => Strings.ReleasesUnreadable,
+        IOException or UnauthorizedAccessException => Strings.InstallFailed(failure.Message),
+        _ => null,
+    };
 }

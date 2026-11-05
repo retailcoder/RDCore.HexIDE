@@ -19,14 +19,23 @@ public sealed class PlatformInstallerTests : IDisposable
         }
     }
 
-    private PlatformInstaller Installer(FakeGitHub github, ReleaseChannel channel = ReleaseChannel.Stable) =>
-        new(new PlatformInstallerOptions { Root = root, Channel = channel }, new HttpClient(github));
+    private PlatformInstaller Installer(FakeGitHub github, ReleaseChannel channel = ReleaseChannel.Stable,
+        Func<PlatformInstallerOptions, PlatformInstallerOptions>? adjust = null) =>
+        new((adjust ?? (options => options))(new PlatformInstallerOptions { Root = root, Channel = channel }), new HttpClient(github));
 
     private async Task<InstalledPlatform> InstallLatest(PlatformInstaller installer, IProgress<InstallProgress>? progress = null)
     {
         var release = await installer.Feed.FindLatestAsync(TestContext.CancellationToken);
         Assert.IsNotNull(release);
         return await installer.InstallAsync(release, progress, TestContext.CancellationToken);
+    }
+
+    private async Task Refused(PlatformInstaller installer, InstallFailure failure)
+    {
+        var refusal = await Assert.ThrowsExactlyAsync<PlatformInstallException>(() => InstallLatest(installer));
+        Assert.AreEqual(failure, refusal.Failure, refusal.Message);
+        Assert.IsNull(installer.Current);
+        Assert.IsTrue(NothingLeftOver());
     }
 
     private string[] Versions() =>
@@ -41,9 +50,19 @@ public sealed class PlatformInstallerTests : IDisposable
     private sealed class Recorded : IProgress<InstallProgress>
     {
         public List<InstallProgress> Reports { get; } = [];
+        public TaskCompletionSource SomeBytes { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
         public void Report(InstallProgress value)
         {
-            lock (Reports) Reports.Add(value);
+            lock (Reports)
+            {
+                Reports.Add(value);
+            }
+
+            if (value is { Stage: InstallStage.Downloading, Bytes: > 0 })
+            {
+                SomeBytes.TrySetResult();
+            }
         }
     }
 
@@ -67,15 +86,19 @@ public sealed class PlatformInstallerTests : IDisposable
     }
 
     [TestMethod]
+    public async Task A_checksum_marked_as_read_in_binary_mode_is_read_as_well()
+    {
+        var installed = await InstallLatest(Installer(new FakeGitHub().Release("v0.1.0", binaryMarker: true)));
+
+        Assert.AreEqual("0.1.0", installed.Version.Text);
+    }
+
+    [TestMethod]
     public async Task A_download_that_doesn_t_match_its_checksum_is_refused_and_nothing_is_deployed()
     {
-        var installer = Installer(new FakeGitHub().Release("v0.1.0", digest: new string('0', 64)));
+        await Refused(Installer(new FakeGitHub().Release("v0.1.0", digest: new string('0', 64))), InstallFailure.ChecksumMismatch);
 
-        await Assert.ThrowsExactlyAsync<InvalidDataException>(() => InstallLatest(installer));
-
-        Assert.IsNull(installer.Current);
         Assert.IsFalse(Directory.Exists(Path.Combine(root, "versions", "0.1.0")));
-        Assert.IsTrue(NothingLeftOver());
     }
 
     [TestMethod]
@@ -83,16 +106,57 @@ public sealed class PlatformInstallerTests : IDisposable
     {
         var noManifest = new Dictionary<string, string> { ["readme.txt"] = "not a platform" };
         var noServer = new Dictionary<string, string> { ["rdcore.json"] = """{ "langService": "RDCore.LanguageServer/RDCore.LanguageServer.exe" }""" };
+        var notAName = new Dictionary<string, string> { ["rdcore.json"] = """{ "langService": 42 }""" };
 
-        foreach (var entries in new[] { noManifest, noServer })
+        foreach (var entries in new[] { noManifest, noServer, notAName })
         {
-            var installer = Installer(new FakeGitHub().Release("v0.1.0", entries: entries));
-
-            await Assert.ThrowsExactlyAsync<InvalidDataException>(() => InstallLatest(installer));
-
-            Assert.IsNull(installer.Current);
-            Assert.IsTrue(NothingLeftOver());
+            await Refused(Installer(new FakeGitHub().Release("v0.1.0", entries: entries)), InstallFailure.NotAPlatform);
         }
+    }
+
+    [TestMethod]
+    [DataRow("../evil.exe")]
+    [DataRow("RDCore.LanguageServer/../../evil.exe")]
+    [DataRow("C:/Windows/System32/cmd.exe")]
+    [DataRow("/bin/sh")]
+    public async Task A_manifest_naming_a_language_server_outside_the_platform_is_refused(string languageServer)
+    {
+        var entries = new Dictionary<string, string>
+        {
+            ["rdcore.json"] = $$"""{ "langService": "{{languageServer}}" }""",
+            ["RDCore.LanguageServer/RDCore.LanguageServer.exe"] = "",
+        };
+        // There is a file where the relative ones lead, so only their leading outside refuses them.
+        Directory.CreateDirectory(Path.Combine(root, "versions"));
+        File.WriteAllText(Path.Combine(root, "versions", "evil.exe"), "");
+
+        await Refused(Installer(new FakeGitHub().Release("v0.1.0", entries: entries)), InstallFailure.NotAPlatform);
+    }
+
+    [TestMethod]
+    public async Task An_archive_with_an_entry_that_would_land_outside_the_platform_is_refused_and_writes_nothing_there()
+    {
+        var entries = new Dictionary<string, string>(FakeGitHub.Platform("0.1.0")) { ["../escaped.txt"] = "outside" };
+
+        await Refused(Installer(new FakeGitHub().Release("v0.1.0", entries: entries)), InstallFailure.NotAPlatform);
+
+        Assert.IsFalse(File.Exists(Path.Combine(root, "versions", "escaped.txt")));
+    }
+
+    [TestMethod]
+    public async Task A_download_bigger_than_its_release_says_is_refused()
+    {
+        await Refused(Installer(new FakeGitHub().Release("v0.1.0", listedSize: 10)), InstallFailure.TooLarge);
+    }
+
+    [TestMethod]
+    public async Task An_archive_with_too_many_entries_or_too_much_to_unpack_is_refused_before_it_is_unpacked()
+    {
+        await Refused(Installer(new FakeGitHub().Release("v0.1.0"), adjust: options => options with { MaxEntries = 2 }),
+            InstallFailure.TooLarge);
+        await Refused(Installer(new FakeGitHub().Release("v0.1.0"), adjust: options => options with { MaxExtractedBytes = 16 }),
+            InstallFailure.TooLarge);
+        Assert.IsFalse(Directory.Exists(Path.Combine(root, "versions", "0.1.0.partial")));
     }
 
     [TestMethod]
@@ -101,7 +165,7 @@ public sealed class PlatformInstallerTests : IDisposable
         await InstallLatest(Installer(new FakeGitHub().Release("v0.1.0")));
         var installer = Installer(new FakeGitHub().Release("v0.1.0").Release("v0.2.0", digest: new string('0', 64)));
 
-        await Assert.ThrowsExactlyAsync<InvalidDataException>(() => InstallLatest(installer));
+        await Assert.ThrowsExactlyAsync<PlatformInstallException>(() => InstallLatest(installer));
 
         Assert.AreEqual("0.1.0", installer.Current?.Version.Text);
     }
@@ -143,6 +207,26 @@ public sealed class PlatformInstallerTests : IDisposable
         CollectionAssert.AreEqual(new[] { "0.2.0", "0.3.0" }, Versions());
     }
 
+    // Only Windows refuses to rename a folder with a file open in it, which is what keeps a held version whole.
+    [TestMethod]
+    [OSCondition(OperatingSystems.Windows)]
+    public async Task A_version_a_server_still_runs_from_is_kept_whole_and_removed_once_it_is_released()
+    {
+        var held = await InstallLatest(Installer(new FakeGitHub().Release("v0.1.0")));
+        var lease = PlatformInstaller.Hold(held);
+        await InstallLatest(Installer(new FakeGitHub().Release("v0.2.0")));
+
+        await InstallLatest(Installer(new FakeGitHub().Release("v0.3.0")));
+
+        CollectionAssert.AreEqual(new[] { "0.1.0", "0.2.0", "0.3.0" }, Versions());
+        Assert.IsTrue(File.Exists(held.Manifest));
+        Assert.IsTrue(File.Exists(Path.Combine(held.Root, "RDCore.LanguageServer", "RDCore.LanguageServer.exe")));
+
+        lease.Dispose();
+        await InstallLatest(Installer(new FakeGitHub().Release("v0.4.0")));
+        CollectionAssert.AreEqual(new[] { "0.3.0", "0.4.0" }, Versions());
+    }
+
     [TestMethod]
     public async Task Two_installations_at_once_take_turns_and_download_the_platform_once()
     {
@@ -176,6 +260,27 @@ public sealed class PlatformInstallerTests : IDisposable
         using var cancellation = new CancellationTokenSource();
 
         var install = installer.InstallAsync(release, null, cancellation.Token);
+        await cancellation.CancelAsync();
+
+        await Assert.ThrowsAsync<OperationCanceledException>(() => install);
+        Assert.IsNull(installer.Current);
+        Assert.IsTrue(NothingLeftOver());
+    }
+
+    [TestMethod]
+    public async Task A_download_cancelled_halfway_leaves_nothing_behind()
+    {
+        var github = new FakeGitHub().Release("v0.1.0");
+        github.MidDownloadGate = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var installer = Installer(github);
+        var release = await installer.Feed.FindLatestAsync(TestContext.CancellationToken);
+        Assert.IsNotNull(release);
+        using var cancellation = new CancellationTokenSource();
+        var progress = new Recorded();
+
+        var install = installer.InstallAsync(release, progress, cancellation.Token);
+        await progress.SomeBytes.Task.WaitAsync(TestContext.CancellationToken);
+        Assert.IsTrue(File.Exists(Path.Combine(root, "downloads", release.ArchiveName + ".partial")), "some of it was written");
         await cancellation.CancelAsync();
 
         await Assert.ThrowsAsync<OperationCanceledException>(() => install);

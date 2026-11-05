@@ -28,9 +28,13 @@ if ($LASTEXITCODE -ne 0) { throw "dotnet publish failed with exit code $LASTEXIT
 try {
     if (Test-Path $Destination) { Remove-Item $Destination -Recurse -Force }
     New-Item -ItemType Directory -Force $Destination | Out-Null
-    # The add-in ships its own assemblies and their resources; what HexIDE shares with it, it doesn't.
-    Get-ChildItem $published -Recurse -File |
-        Where-Object { $_.Extension -in '.dll', '.pdb', '.xml' -and $_.Name -notlike 'HexIDE*' -and $_.Name -notlike 'Avalonia*' } |
+    # The add-in ships RDCore's own assemblies and their resources, and nothing else: HexIDE shares its own, Avalonia and
+    # everything Avalonia depends on included, and anything new a dependency drags in is left out rather than shipped unseen.
+    $shipped = Get-ChildItem $published -Recurse -File |
+        Where-Object { $_.Extension -in '.dll', '.pdb', '.xml' -and $_.Name -like 'RDCore.*' }
+    $left = Get-ChildItem $published -Recurse -File -Filter *.dll | Where-Object { $_.Name -notlike 'RDCore.*' }
+    if ($left) { Write-Host "Not shipped, as HexIDE has its own: $(($left | ForEach-Object Name | Sort-Object -Unique) -join ', ')" }
+    $shipped |
         ForEach-Object {
             $relative = [IO.Path]::GetRelativePath($published, $_.FullName)
             $target = Join-Path $Destination $relative

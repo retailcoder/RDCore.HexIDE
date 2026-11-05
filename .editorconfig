@@ -2,3 +2,7 @@
 
 # SYSLIB1054: Use 'LibraryImportAttribute' instead of 'DllImportAttribute' to generate P/Invoke marshalling code at compile time
 dotnet_diagnostic.SYSLIB1054.severity = silent
+
+# RDCore's style: every if, else, for, foreach, while and using braces its body, one line or not (IDE0011), enforced at build.
+csharp_prefer_braces = true:warning
+dotnet_diagnostic.IDE0011.severity = warning

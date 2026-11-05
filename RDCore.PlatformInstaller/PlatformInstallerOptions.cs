@@ -22,6 +22,21 @@ public sealed record PlatformInstallerOptions
     public Uri ApiBase { get; init; } = new("https://api.github.com/");
 
     /// <summary>
+    /// The hosts a release's assets are downloaded from, over https only: an asset anywhere else makes its release one the
+    /// installer doesn't offer. GitHub then redirects a download to its own storage.
+    /// </summary>
+    public IReadOnlyList<string> AssetHosts { get; init; } = ["github.com"];
+
+    /// <summary>The most a platform's zip may be; a bigger download is refused. 1 GiB.</summary>
+    public long MaxArchiveBytes { get; init; } = 1L << 30;
+
+    /// <summary>The most a platform may unpack to; a bigger archive is refused before it is unpacked. 4 GiB.</summary>
+    public long MaxExtractedBytes { get; init; } = 4L << 30;
+
+    /// <summary>The most entries a platform's zip may have; one with more is refused before it is unpacked.</summary>
+    public int MaxEntries { get; init; } = 50_000;
+
+    /// <summary>
     /// The root a user's platform is installed under: <c>RDCore/Platform</c> in the local application data folder, which is
     /// RDCore's own, not any one client's.
     /// </summary>

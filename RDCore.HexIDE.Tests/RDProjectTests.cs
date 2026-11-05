@@ -122,7 +122,9 @@ public sealed class RDProjectTests : IDisposable
         WriteProject("""["src/Main.bas"]""", otherFiles: "[]");
         var before = RDProject.Read(ProjectFile);
         if (copy)
+        {
             File.Copy(Full("src/Main.bas"), Full("src/Other.bas"));
+        }
         else
         {
             File.Delete(Full("src/Main.bas"));
@@ -152,7 +154,10 @@ public sealed class RDProjectTests : IDisposable
         // The deadline only bounds a change the file system never reports.
         var deadline = DateTime.UtcNow + TimeSpan.FromSeconds(30);
         while (changes.Calls.Count == 0 && DateTime.UtcNow < deadline)
+        {
             await Task.Delay(50, TestContext.CancellationToken);
+        }
+
         CollectionAssert.AreEqual(new[] { $"added {Full("src/Helpers.bas")} StandardModule" }, changes.Calls);
 
         changes.Close();
@@ -197,7 +202,10 @@ public sealed class RDProjectTests : IDisposable
 
         private void Record(string call)
         {
-            lock (Calls) Calls.Add(call);
+            lock (Calls)
+            {
+                Calls.Add(call);
+            }
         }
     }
 }

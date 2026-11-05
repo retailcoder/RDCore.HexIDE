@@ -45,6 +45,27 @@ internal static class Strings
 
     public static string Ok => Get(nameof(Ok));
 
+    public static string TimedOut => Get(nameof(TimedOut));
+
+    public static string ChecksumMismatch => Get(nameof(ChecksumMismatch));
+
+    public static string NotAPlatform => Get(nameof(NotAPlatform));
+
+    public static string TooLarge => Get(nameof(TooLarge));
+
+    public static string ReleasesUnreadable => Get(nameof(ReleasesUnreadable));
+
+    public static string NoManifest => Get(nameof(NoManifest));
+
+    /// <summary>{0}: the version.</summary>
+    public static string VersionGone(string version) => Format(nameof(VersionGone), version);
+
+    /// <summary>{0}: the version.</summary>
+    public static string PlatformGone(string version) => Format(nameof(PlatformGone), version);
+
+    /// <summary>{0}: why.</summary>
+    public static string ServerNotRegistered(string reason) => Format(nameof(ServerNotRegistered), reason);
+
     /// <summary>{0}: a size in megabytes.</summary>
     public static string Megabytes(double megabytes) => Format(nameof(Megabytes), megabytes);
 }

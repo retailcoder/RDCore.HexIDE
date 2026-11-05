@@ -13,7 +13,8 @@
     <Company>9562-7303 Québec inc.</Company>
     <Product>RDCore</Product>
     <Copyright>Copyright © 2026 $(Authors)</Copyright>
-    <PackageLicenseFile>LICENSE-GPLv3.md</PackageLicenseFile>
+    <!-- the licence's text is LICENSE-GPLv3.md. -->
+    <PackageLicenseExpression>GPL-3.0-or-later</PackageLicenseExpression>
     <PackageProjectUrl>https://github.com/rubberduck-vba/RDCore.HexIDE</PackageProjectUrl>
     <RepositoryUrl>https://github.com/rubberduck-vba/RDCore.HexIDE</RepositoryUrl>
     <RepositoryType>git</RepositoryType>
@@ -27,6 +28,8 @@
     <Nullable>enable</Nullable>
     <LangVersion>latest</LangVersion>
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <!-- .editorconfig's style rules are build errors, so the style holds without a reviewer counting braces. -->
+    <EnforceCodeStyleInBuild>true</EnforceCodeStyleInBuild>
   </PropertyGroup>
 
   <!-- the sources the add-in builds against until they are packages. tools/Get-Dependencies.ps1 fetches them into deps/, at the
