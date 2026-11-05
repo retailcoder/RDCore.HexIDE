@@ -19,7 +19,6 @@ public sealed class RDCoreAddin : IAddin
     private RDCoreServer? server;
     private RDCoreProjectType? projectType;
     private IDisposable? projectTypeRegistration;
-    private RDCoreDebugLaunch? debugLaunch;
     private IDisposable? debugLaunchRegistration;
 
     /// <inheritdoc/>
@@ -38,8 +37,7 @@ public sealed class RDCoreAddin : IAddin
         // One source, so the server and a run share the one question and its answer.
         var platform = new PlatformSource(settings, installer, prompts);
         server = new RDCoreServer(host, platform, prompts);
-        debugLaunch = new RDCoreDebugLaunch(platform);
-        debugLaunchRegistration = host.RegisterDebugLaunch(debugLaunch.Launch);
+        debugLaunchRegistration = host.RegisterDebugLaunch(new RDCoreDebugLaunch(platform).Launch);
 
         host.Events.ProjectLoaded += OnProjectLoaded;
         host.Events.ProjectUnloaded += OnProjectUnloaded;
@@ -69,7 +67,6 @@ public sealed class RDCoreAddin : IAddin
         }
         server?.Dispose();
         debugLaunchRegistration?.Dispose();
-        debugLaunch?.Dispose();
         projectTypeRegistration?.Dispose();
         projectType?.Dispose();
         http?.Dispose();

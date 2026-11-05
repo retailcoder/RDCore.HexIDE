@@ -15,25 +15,24 @@ namespace RDCore.HexIDE.Debugging;
 /// <para>
 /// <b>The language server's platform.</b> It is found, or installed with the user's consent, as the server's is
 /// (<see cref="PlatformSource"/>), when the user asks for a run. A run asked for while the user is asked shares the question
-/// and its answer. Without a platform the run ends, and HexIDE says why.
+/// and its answer; a run after "Not now" asks again. A version that lost its language server isn't installed any more, as
+/// far as the installer is concerned, so a run asks to download it again. Without a platform the run ends, and HexIDE says
+/// why.
 /// </para>
 /// <para>
 /// <b>What runs is the adapter's to find.</b> The launch names no module and no entry point, so the adapter runs <c>Main</c>
 /// of the one standard module that declares it, and refuses the run, with the reason, when none does or more than one does.
 /// </para>
 /// <para>
-/// <b>Held until the add-in goes.</b> HexIDE doesn't tell an add-in when a session ends, so an installed version a run starts
-/// from stays held until then (<see cref="PlatformInstaller.PlatformInstaller.Hold"/>), once per version. A running adapter
-/// keeps its own folder in place meanwhile; the lease covers the start.
+/// <b>Nothing held.</b> A running adapter keeps its version in place itself: an installer renames a version out of the way
+/// before it removes it, which fails while a process runs from it. Holding the version as well would keep it from being
+/// deployed again when it breaks.
 /// </para>
 /// </remarks>
-internal sealed class RDCoreDebugLaunch(PlatformSource platform) : IDisposable
+internal sealed class RDCoreDebugLaunch(PlatformSource platform)
 {
     /// <summary>What the Run menu calls it.</summary>
     public const string Title = "RDCore";
-
-    private readonly Dictionary<string, IDisposable> leases = new(OperatingSystem.IsWindows() ? StringComparer.OrdinalIgnoreCase : StringComparer.Ordinal);
-    private bool disposed;
 
     /// <summary>The launch HexIDE is given: one for RDCore projects only.</summary>
     public AddinDebugLaunch Launch => new(Title)
@@ -47,13 +46,12 @@ internal sealed class RDCoreDebugLaunch(PlatformSource platform) : IDisposable
     /// <exception cref="OperationCanceledException">The run was ended before it started.</exception>
     public async Task<AddinLaunchConfiguration> CreateConfigurationAsync(AddinProjectInfo project, CancellationToken cancellationToken)
     {
-        var choice = await platform.GetAsync(cancellationToken) ?? throw new InvalidOperationException(Strings.NoPlatformToRun);
+        var choice = await platform.GetToRunAsync(cancellationToken);
         cancellationToken.ThrowIfCancellationRequested();
 
         RDCoreDebugAdapterLaunch launch;
         try
         {
-            Hold(choice);
             launch = RDCoreDebugAdapterLaunch.Prepare(new RDCoreDebugAdapterLaunchOptions
             {
                 PlatformRoot = choice.Root,
@@ -75,36 +73,5 @@ internal sealed class RDCoreDebugLaunch(PlatformSource platform) : IDisposable
             AdapterId = RDCoreDebugAdapterLaunch.AdapterId,
             Launch = JsonSerializer.SerializeToElement(launch.LaunchArguments),
         };
-    }
-
-    private void Hold(PlatformChoice choice)
-    {
-        if (choice.Installed is not { } installed)
-        {
-            return;
-        }
-
-        lock (leases)
-        {
-            if (!disposed && !leases.ContainsKey(installed.Root))
-            {
-                leases[installed.Root] = PlatformInstaller.PlatformInstaller.Hold(installed);
-            }
-        }
-    }
-
-    /// <inheritdoc/>
-    public void Dispose()
-    {
-        lock (leases)
-        {
-            disposed = true;
-            foreach (var lease in leases.Values)
-            {
-                lease.Dispose();
-            }
-
-            leases.Clear();
-        }
     }
 }

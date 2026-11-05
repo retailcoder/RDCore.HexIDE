@@ -42,14 +42,17 @@ public sealed class RDCoreDebugLaunchTests : IDisposable
         return root;
     }
 
-    private RDCoreDebugLaunch DebugLaunch(string? platformRoot = null, FakeGitHub? github = null)
+    private RDCoreDebugLaunch DebugLaunch(string? platformRoot = null, FakeGitHub? github = null) =>
+        new(Source(platformRoot, github));
+
+    private PlatformSource Source(string? platformRoot = null, FakeGitHub? github = null)
     {
         var installer = new PlatformInstaller.PlatformInstaller(new PlatformInstallerOptions
         {
             Root = Path.Combine(folder, "installed"),
             Channel = ReleaseChannel.Preview,
         }, new HttpClient(github ?? new FakeGitHub()));
-        return new RDCoreDebugLaunch(new PlatformSource(new AddinSettings { PlatformRoot = platformRoot }, installer, prompts));
+        return new PlatformSource(new AddinSettings { PlatformRoot = platformRoot }, installer, prompts);
     }
 
     private static T InCulture<T>(string culture, Func<T> action)
@@ -69,7 +72,7 @@ public sealed class RDCoreDebugLaunchTests : IDisposable
     [TestMethod]
     public void It_is_offered_for_RDCore_projects_only()
     {
-        using var debugLaunch = DebugLaunch();
+        var debugLaunch =DebugLaunch();
         var launch = debugLaunch.Launch;
 
         Assert.AreEqual(RDCoreDebugLaunch.Title, launch.Title);
@@ -81,7 +84,7 @@ public sealed class RDCoreDebugLaunchTests : IDisposable
     public async Task A_run_starts_the_platform_s_debug_adapter_for_the_project_s_folder_and_leaves_what_runs_to_it()
     {
         var root = BuiltPlatform();
-        using var debugLaunch = DebugLaunch(root);
+        var debugLaunch =DebugLaunch(root);
 
         var configuration = await debugLaunch.Launch.CreateConfigurationAsync(Project(), TestContext.CancellationToken);
 
@@ -100,7 +103,7 @@ public sealed class RDCoreDebugLaunchTests : IDisposable
     public async Task With_no_platform_the_newest_release_is_downloaded_once_the_user_agrees_and_the_run_starts_from_it()
     {
         prompts.Answer = true;
-        using var debugLaunch = DebugLaunch(github: new FakeGitHub().Release("v0.1.0-alpha", prerelease: true));
+        var debugLaunch =DebugLaunch(github: new FakeGitHub().Release("v0.1.0-alpha", prerelease: true));
 
         var configuration = await debugLaunch.Launch.CreateConfigurationAsync(Project(), TestContext.CancellationToken);
 
@@ -113,21 +116,39 @@ public sealed class RDCoreDebugLaunchTests : IDisposable
     {
         var github = new FakeGitHub().Release("v0.1.0");
         prompts.Answer = false;
-        using var debugLaunch = DebugLaunch(github: github);
+        var debugLaunch =DebugLaunch(github: github);
 
-        var refused = await Assert.ThrowsExactlyAsync<InvalidOperationException>(
+        var refused = await Assert.ThrowsExactlyAsync<PlatformUnavailableException>(
             () => debugLaunch.Launch.CreateConfigurationAsync(Project(), TestContext.CancellationToken));
 
-        Assert.AreEqual(Strings.NoPlatformToRun, refused.Message);
+        Assert.AreEqual(Strings.DownloadDeclined, refused.Message);
+        Assert.AreEqual(0, prompts.Told.Count, "HexIDE shows the run's message");
         Assert.IsFalse(github.Requests.Any(request => request.AbsolutePath.EndsWith(".zip")));
     }
 
     [TestMethod]
-    [DataRow("en", "RDCore's platform isn't on this machine, so the project can't run.")]
-    [DataRow("fr-CA", "La plateforme de RDCore n'est pas sur ce poste : le projet ne peut donc pas s'exécuter.")]
-    public void Why_a_run_can_t_start_without_a_platform_is_said_in_the_user_s_language(string culture, string message)
+    public async Task A_run_after_Not_now_asks_again_and_downloads_once_the_user_agrees()
     {
-        Assert.AreEqual(message, InCulture(culture, () => Strings.NoPlatformToRun));
+        var source = Source(github: new FakeGitHub().Release("v0.1.0"));
+        var debugLaunch =new RDCoreDebugLaunch(source);
+        prompts.Answer = false;
+        Assert.IsNull(await source.GetAsync(TestContext.CancellationToken), "the question opening a project asks");
+        Assert.IsNull(await source.GetAsync(TestContext.CancellationToken), "Not now holds for the next project opened");
+        Assert.AreEqual(1, prompts.Asked.Count);
+
+        prompts.Answer = true;
+        var configuration = await debugLaunch.Launch.CreateConfigurationAsync(Project(), TestContext.CancellationToken);
+
+        Assert.AreEqual(2, prompts.Asked.Count, "the run asked again");
+        StringAssert.StartsWith(configuration.Executable, Path.Combine(folder, "installed", "versions", "0.1.0"));
+    }
+
+    [TestMethod]
+    [DataRow("en", "RDCore's platform wasn't downloaded, so the project can't run.")]
+    [DataRow("fr-CA", "La plateforme de RDCore n'a pas été téléchargée : le projet ne peut donc pas s'exécuter.")]
+    public void Why_a_declined_run_can_t_start_is_said_in_the_user_s_language(string culture, string message)
+    {
+        Assert.AreEqual(message, InCulture(culture, () => Strings.DownloadDeclined));
     }
 
     [TestMethod]
@@ -135,7 +156,7 @@ public sealed class RDCoreDebugLaunchTests : IDisposable
     {
         var root = Path.Combine(folder, "empty");
         Directory.CreateDirectory(root);
-        using var debugLaunch = DebugLaunch(root);
+        var debugLaunch =DebugLaunch(root);
 
         var refused = await Assert.ThrowsExactlyAsync<InvalidOperationException>(
             () => debugLaunch.Launch.CreateConfigurationAsync(Project(), TestContext.CancellationToken));
@@ -149,7 +170,7 @@ public sealed class RDCoreDebugLaunchTests : IDisposable
     {
         var github = new FakeGitHub().Release("v0.1.0");
         prompts.Pending = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
-        using var debugLaunch = DebugLaunch(github: github);
+        var debugLaunch =DebugLaunch(github: github);
         using var ended = new CancellationTokenSource();
 
         var creating = debugLaunch.Launch.CreateConfigurationAsync(Project(), ended.Token);
@@ -157,23 +178,40 @@ public sealed class RDCoreDebugLaunchTests : IDisposable
         prompts.Pending.SetResult(true);
         await Assert.ThrowsAsync<OperationCanceledException>(() => creating);
 
+        Assert.AreEqual(1, prompts.Asked.Count, "the run was ended while the user was asked");
         Assert.IsFalse(github.Requests.Any(request => request.AbsolutePath.EndsWith(".zip")));
         Assert.IsFalse(Directory.Exists(Path.Combine(folder, "installed", "versions")), "nothing was deployed");
     }
 
-    // Only Windows keeps a file that is open from being deleted, which is what the lease relies on.
+    // On Windows an open file keeps its folder from being replaced, so a version a run held couldn't be deployed again.
     [TestMethod]
-    [OSCondition(OperatingSystems.Windows)]
-    public async Task The_installed_version_a_run_starts_from_is_held_until_the_add_in_goes()
+    public async Task An_installed_version_that_lost_its_language_server_is_deployed_again_once_the_user_agrees_and_the_run_starts_from_it()
     {
         prompts.Answer = true;
         var debugLaunch = DebugLaunch(github: new FakeGitHub().Release("v0.1.0"));
-        await debugLaunch.Launch.CreateConfigurationAsync(Project(), TestContext.CancellationToken);
-        await debugLaunch.Launch.CreateConfigurationAsync(Project(), TestContext.CancellationToken);
-        var manifest = Path.Combine(folder, "installed", "versions", "0.1.0", "rdcore.json");
+        var first = await debugLaunch.Launch.CreateConfigurationAsync(Project(), TestContext.CancellationToken);
+        File.Delete(first.Executable);
 
-        Assert.ThrowsExactly<IOException>(() => File.Delete(manifest));
-        debugLaunch.Dispose();
-        File.Delete(manifest);
+        var again = await debugLaunch.Launch.CreateConfigurationAsync(Project(), TestContext.CancellationToken);
+
+        Assert.AreEqual(2, prompts.Asked.Count, "asked again before it was deployed again");
+        Assert.AreEqual(first.Executable, again.Executable);
+        Assert.IsTrue(File.Exists(again.Executable));
+    }
+
+    [TestMethod]
+    public async Task An_installed_version_that_lost_its_language_server_and_isn_t_downloaded_again_ends_the_run_saying_so()
+    {
+        prompts.Answer = true;
+        var debugLaunch = DebugLaunch(github: new FakeGitHub().Release("v0.1.0"));
+        var first = await debugLaunch.Launch.CreateConfigurationAsync(Project(), TestContext.CancellationToken);
+        File.Delete(first.Executable);
+        prompts.Answer = false;
+
+        var refused = await Assert.ThrowsExactlyAsync<PlatformUnavailableException>(
+            () => debugLaunch.Launch.CreateConfigurationAsync(Project(), TestContext.CancellationToken));
+
+        Assert.AreEqual(Strings.DownloadDeclined, refused.Message);
+        Assert.AreEqual(0, prompts.Told.Count, "HexIDE shows the run's message");
     }
 }

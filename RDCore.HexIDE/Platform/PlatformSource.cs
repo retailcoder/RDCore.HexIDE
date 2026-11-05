@@ -6,21 +6,29 @@ namespace RDCore.HexIDE.Platform;
 /// <summary>The platform a server runs from: its root, and the installed version when it is one, not a development root.</summary>
 internal sealed record PlatformChoice(string Root, InstalledPlatform? Installed);
 
+/// <summary>There is no platform to run; the message says why, in the user's language.</summary>
+internal sealed class PlatformUnavailableException(string message, Exception? innerException = null)
+    : InvalidOperationException(message, innerException);
+
 /// <summary>
 /// The platform RDCore runs from: the development override when one is set, the installed platform otherwise, and, when
 /// there is none, the newest release, downloaded only once the user agrees.
 /// </summary>
 /// <remarks>
 /// <para>
-/// <b>One question at a time.</b> RDCore projects opened while the user is asked share the one question and its answer.
-/// "Not now" holds until HexIDE restarts: no RDCore project opened after it asks again.
+/// <b>One question at a time.</b> RDCore projects opened, and runs started, while the user is asked share the one question and
+/// its answer.
+/// </para>
+/// <para>
+/// <b>"Not now" is for the question nobody asked for.</b> It holds until HexIDE restarts for the question opening a project
+/// asks: no RDCore project opened after it asks again. A run is the user asking for RDCore, so a run asks again.
 /// </para>
 /// <para>
 /// <b>Off the UI thread.</b> The installation runs on the thread pool; only its progress and its outcome reach the UI.
 /// </para>
 /// <para>
-/// <b>Never silent.</b> Whatever stops RDCore from having a platform, the user is told why, in their language, unless it was
-/// their own "Not now".
+/// <b>Never silent, never twice.</b> Whatever stops RDCore from having a platform, the user is told why, in their language,
+/// unless it was their own "Not now" on opening a project. A run isn't told: it fails with the reason, which HexIDE shows.
 /// </para>
 /// </remarks>
 internal sealed class PlatformSource(AddinSettings settings, PlatformInstaller.PlatformInstaller installer, IUserPrompts prompts)
@@ -30,10 +38,33 @@ internal sealed class PlatformSource(AddinSettings settings, PlatformInstaller.P
     private bool declined;
 
     /// <summary>
-    /// The platform to run, or null when there is none to run: the user declined the download, or there is nothing to download,
-    /// or it failed, which the user has been told.
+    /// The platform for a project that opened, or null when there is none to run: the user declined the download, now or
+    /// earlier, or there is nothing to download, or it failed, which the user has been told.
     /// </summary>
     public async Task<PlatformChoice?> GetAsync(CancellationToken cancellationToken)
+    {
+        try
+        {
+            return await FindAsync(askAgain: false, cancellationToken);
+        }
+        catch (PlatformUnavailableException unavailable)
+        {
+            await prompts.TellAsync(unavailable.Message);
+            return null;
+        }
+    }
+
+    /// <summary>
+    /// The platform for a run the user started: as for a project that opened, except that an earlier "Not now" doesn't hold,
+    /// so the user is asked again, and that the user isn't told why there is none: the run fails with the reason.
+    /// </summary>
+    /// <exception cref="PlatformUnavailableException">There is none to run; the message says why, for HexIDE to show.</exception>
+    /// <exception cref="OperationCanceledException">The run was ended before it had one.</exception>
+    public async Task<PlatformChoice> GetToRunAsync(CancellationToken cancellationToken) =>
+        await FindAsync(askAgain: true, cancellationToken) ?? throw new PlatformUnavailableException(Strings.DownloadDeclined);
+
+    // Null for a declined download, said nowhere: the caller says it, or doesn't.
+    private async Task<PlatformChoice?> FindAsync(bool askAgain, CancellationToken cancellationToken)
     {
         if (settings.PlatformRoot is { Length: > 0 } development)
         {
@@ -47,7 +78,7 @@ internal sealed class PlatformSource(AddinSettings settings, PlatformInstaller.P
 
         lock (gate)
         {
-            if (declined)
+            if (declined && !askAgain)
             {
                 return null;
             }
@@ -55,13 +86,8 @@ internal sealed class PlatformSource(AddinSettings settings, PlatformInstaller.P
 
         try
         {
-            var release = await installer.Feed.FindLatestAsync(cancellationToken);
-            if (release is null)
-            {
-                await prompts.TellAsync(Strings.NoRelease);
-                return null;
-            }
-
+            var release = await installer.Feed.FindLatestAsync(cancellationToken)
+                ?? throw new PlatformUnavailableException(Strings.NoRelease);
             if (!await AskAsync(release))
             {
                 return null;
@@ -72,10 +98,9 @@ internal sealed class PlatformSource(AddinSettings settings, PlatformInstaller.P
             var deployed = await InstallAsync(release, cancellationToken);
             return new PlatformChoice(deployed.Root, deployed);
         }
-        catch (Exception ex) when (Reason(ex, cancellationToken) is { } reason)
+        catch (Exception ex) when (ex is not PlatformUnavailableException && Reason(ex, cancellationToken) is { } reason)
         {
-            await prompts.TellAsync(reason);
-            return null;
+            throw new PlatformUnavailableException(reason, ex);
         }
     }
 

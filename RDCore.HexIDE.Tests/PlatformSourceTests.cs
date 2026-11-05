@@ -202,6 +202,33 @@ public sealed class PlatformSourceTests : IDisposable
         }
     }
 
+    [TestMethod]
+    [DataRow("no release")]
+    [DataRow("timed out")]
+    [DataRow("unreachable")]
+    [DataRow("HTTP status")]
+    [DataRow("checksum mismatch")]
+    [DataRow("unexpected")]
+    public async Task A_run_without_a_platform_fails_with_the_reason_and_tells_the_user_nothing(string failure)
+    {
+        var (github, reason) = failure switch
+        {
+            "no release" => ((HttpMessageHandler)new FakeGitHub(), Strings.NoRelease),
+            "timed out" => (new TimingOut(), Strings.TimedOut),
+            "unreachable" => (new Throwing(new HttpRequestException(HttpRequestError.NameResolutionError, "No such host is known.")),
+                Strings.ReleasesUnreachable(Strings.NoConnection)),
+            "HTTP status" => (new Answering(HttpStatusCode.ServiceUnavailable), Strings.ReleasesUnreachable(Strings.HttpStatus(503))),
+            "checksum mismatch" => (new FakeGitHub().Release("v0.1.0", digest: new string('0', 64)), Strings.ChecksumMismatch),
+            _ => (new Throwing(new NotSupportedException("Specified method is not supported.")),
+                Strings.InstallFailed(Strings.UnexpectedFailure(nameof(NotSupportedException)))),
+        };
+
+        var refused = await Assert.ThrowsExactlyAsync<PlatformUnavailableException>(() => Source(github).GetToRunAsync(TestContext.CancellationToken));
+
+        Assert.AreEqual(reason, refused.Message);
+        Assert.AreEqual(0, prompts.Told.Count, "HexIDE shows the run's message");
+    }
+
     private sealed class Throwing(Exception failure) : HttpMessageHandler
     {
         protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken) =>
