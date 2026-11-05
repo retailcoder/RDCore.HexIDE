@@ -17,6 +17,13 @@ internal sealed record AddinSettings
     /// </summary>
     public string? PlatformRoot { get; init; }
 
+    /// <summary>
+    /// A folder to download releases from instead of GitHub, as <see cref="Platform.DevelopmentFeed"/> lays one out: for trying
+    /// the question, the download and the installation before any release is published. <see cref="PlatformRoot"/>, when it is
+    /// set too, wins, and nothing is downloaded.
+    /// </summary>
+    public string? DevelopmentFeed { get; init; }
+
     /// <summary>Which releases are installed. Absent means the add-in's own kind: preview for a prerelease add-in.</summary>
     [System.Text.Json.Serialization.JsonConverter(typeof(System.Text.Json.Serialization.JsonStringEnumConverter<ReleaseChannel>))]
     public ReleaseChannel? Channel { get; init; }

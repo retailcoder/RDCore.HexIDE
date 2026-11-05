@@ -29,7 +29,7 @@ public sealed class RDCoreAddin : IAddin
         projectTypeRegistration = host.RegisterProjectType(projectType.Type);
 
         var settings = AddinSettings.Load(AddinSettings.DefaultPath);
-        http = new HttpClient();
+        http = settings.DevelopmentFeed is { Length: > 0 } feed ? new HttpClient(new DevelopmentFeed(feed)) : new HttpClient();
         var installer = new PlatformInstaller.PlatformInstaller(
             new PlatformInstallerOptions { Root = PlatformInstallerOptions.DefaultRoot, Channel = settings.EffectiveChannel }, http);
         server = new RDCoreServer(host, new PlatformSource(settings, installer, prompts), prompts);

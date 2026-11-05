@@ -20,9 +20,10 @@ public sealed class AddinSettingsTests : IDisposable
     [TestMethod]
     public void Settings_are_read_by_name_and_settings_that_can_t_be_read_are_the_defaults()
     {
-        File.WriteAllText(path, """{ "platformRoot": "C:/Dev/RDCore/artifacts/rdcore-dev", "channel": "Stable" }""");
+        File.WriteAllText(path, """{ "platformRoot": "C:/Dev/RDCore/artifacts/rdcore-dev", "channel": "Stable", "developmentFeed": "C:/feed" }""");
         var settings = AddinSettings.Load(path);
         Assert.AreEqual("C:/Dev/RDCore/artifacts/rdcore-dev", settings.PlatformRoot);
+        Assert.AreEqual("C:/feed", settings.DevelopmentFeed);
         Assert.AreEqual(ReleaseChannel.Stable, settings.Channel);
 
         File.WriteAllText(path, "{ not json");
