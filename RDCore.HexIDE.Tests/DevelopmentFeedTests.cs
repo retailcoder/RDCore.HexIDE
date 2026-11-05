@@ -96,6 +96,7 @@ public sealed class DevelopmentFeedTests : IDisposable
     [DataRow("https://github.com/%2E%2E/%2E%2E/secret.txt")]
     [DataRow("http://github.com/rubberduck-vba/RDCore/releases/download/v0.1.0-dev.1/SHA256SUMS")]
     [DataRow("https://github.com/rubberduck-vba/RDCore/releases/download/v0.1.0-dev.1/missing.zip")]
+    [DataRow("https://github.com/rubberduck-vba/RDCore/releases/download/v0.1.0-dev.1/SHA256SUMS%00.zip")]
     public async Task What_isn_t_in_the_folder_over_https_is_not_found(string url)
     {
         Publish("0.1.0-dev.1");

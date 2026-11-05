@@ -30,7 +30,8 @@ internal sealed class DevelopmentFeed(string folder) : HttpMessageHandler
             : new HttpResponseMessage(HttpStatusCode.NotFound) { RequestMessage = request });
     }
 
-    // The file a request names, or null when there is none, or the request would lead out of the folder.
+    // The file a request names, or null when there is none, when the request would lead out of the folder, or when what it
+    // names can't be a path at all, as one with a null character can't.
     private string? FileFor(Uri? url)
     {
         if (url is null || !url.IsAbsoluteUri || url.Scheme != Uri.UriSchemeHttps)
@@ -38,7 +39,16 @@ internal sealed class DevelopmentFeed(string folder) : HttpMessageHandler
             return null;
         }
 
-        var path = Path.GetFullPath(Path.Combine(root, url.Host, Uri.UnescapeDataString(url.AbsolutePath).TrimStart('/')));
+        string path;
+        try
+        {
+            path = Path.GetFullPath(Path.Combine(root, url.Host, Uri.UnescapeDataString(url.AbsolutePath).TrimStart('/')));
+        }
+        catch (Exception ex) when (ex is ArgumentException or NotSupportedException or PathTooLongException)
+        {
+            return null;
+        }
+
         var comparison = OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal;
         return path.StartsWith(root, comparison) && File.Exists(path) ? path : null;
     }
