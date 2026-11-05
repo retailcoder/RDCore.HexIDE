@@ -2,6 +2,8 @@ using System.Collections.Concurrent;
 using System.Text.Json;
 using HexIDE.Addins;
 using RDCore.SDK.Client;
+using StreamJsonRpc;
+using StreamJsonRpc.Protocol;
 
 namespace RDCore.HexIDE.Server;
 
@@ -12,7 +14,8 @@ namespace RDCore.HexIDE.Server;
 /// <remarks>
 /// HexIDE takes the methods an add-in answers when it registers the server, while RDCore's client sets its handlers once it
 /// is connected. So every server-to-client method the protocol has is claimed up front (<see cref="ServerMethods"/>) and
-/// answered by whichever handler is set by then, or refused as unknown while none is.
+/// answered by whichever handler is set by then, or refused while none is, as a method the client doesn't have
+/// (<c>MethodNotFound</c>, -32601), which HexIDE passes on as it is.
 /// </remarks>
 internal sealed class ConnectionChannel : IRDCorePlatformChannel
 {
@@ -33,7 +36,10 @@ internal sealed class ConnectionChannel : IRDCorePlatformChannel
         method => method,
         method => (AddinServerMethod)((parameters, token) => handlers.TryGetValue(method, out var handler)
             ? handler(parameters, token)
-            : throw new InvalidOperationException($"Nothing in RDCore for HexIDE answers {method} yet.")));
+            : throw new LocalRpcException($"Nothing in RDCore for HexIDE answers {method} yet.")
+            {
+                ErrorCode = (int)JsonRpcErrorCode.MethodNotFound,
+            }));
 
     /// <summary>The connection of the server's current process: a restart is a new one.</summary>
     public void Connect(IAddinServerConnection current) => connection = current;

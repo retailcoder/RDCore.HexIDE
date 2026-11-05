@@ -17,6 +17,11 @@
   <ItemGroup>
     <!-- HexIDE's own Avalonia is the one loaded, for the same reason. -->
     <PackageReference Include="Avalonia" Version="$(HexIdeAvaloniaVersion)" ExcludeAssets="runtime" />
+    <!-- HexIDE's own StreamJsonRpc is the one loaded too: an add-in assembly the package doesn't carry resolves to HexIDE's,
+         so the LocalRpcException the add-in throws is the one HexIDE's connection knows. -->
+    <PackageReference Include="StreamJsonRpc" Version="$(HexIdeStreamJsonRpcVersion)" ExcludeAssets="runtime" PrivateAssets="all" />
+    <PackageReference Include="MessagePack" Version="$(HexIdeMessagePackVersion)" ExcludeAssets="all" PrivateAssets="all" />
+    <PackageReference Include="Nerdbank.MessagePack" Version="$(HexIdeNerdbankMessagePackVersion)" ExcludeAssets="all" PrivateAssets="all" />
   </ItemGroup>
 
   <ItemGroup>
