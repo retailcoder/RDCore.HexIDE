@@ -50,7 +50,10 @@ internal sealed class ConnectionChannel : IRDCorePlatformChannel
     public IDisposable OnRequest(string method, Func<JsonElement?, CancellationToken, Task<JsonElement?>> handler)
     {
         if (!ServerToClient.Contains(method))
+        {
             throw new ArgumentException($"{method} isn't a server-to-client method this channel claims.", nameof(method));
+        }
+
         handlers[method] = handler;
         return new Release(() => handlers.TryRemove(new KeyValuePair<string, Func<JsonElement?, CancellationToken, Task<JsonElement?>>>(method, handler)));
     }

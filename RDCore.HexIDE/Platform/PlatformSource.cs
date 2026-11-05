@@ -16,9 +16,14 @@ internal sealed class PlatformSource(AddinSettings settings, PlatformInstaller.P
     public async Task<string?> GetRootAsync(CancellationToken cancellationToken)
     {
         if (settings.PlatformRoot is { Length: > 0 } development)
+        {
             return development;
+        }
+
         if (installer.Current is { } installed)
+        {
             return installed.Root;
+        }
 
         PlatformRelease? release;
         try
@@ -36,7 +41,9 @@ internal sealed class PlatformSource(AddinSettings settings, PlatformInstaller.P
             return null;
         }
         if (!await prompts.ConfirmDownloadAsync(release, PlatformInstallerOptions.DefaultRoot))
+        {
             return null;
+        }
         // The project may have closed while the question was open: then nothing is downloaded for it.
         cancellationToken.ThrowIfCancellationRequested();
 
@@ -59,8 +66,13 @@ internal sealed class PlatformSource(AddinSettings settings, PlatformInstaller.P
     public async Task EnsureStillThereAsync(string root, CancellationToken cancellationToken)
     {
         if (File.Exists(Path.Combine(root, "rdcore.json")) || settings.PlatformRoot is { Length: > 0 })
+        {
             return;
+        }
+
         if (await installer.Feed.FindLatestAsync(cancellationToken) is { } release)
+        {
             await installer.InstallAsync(release, null, cancellationToken);
+        }
     }
 }

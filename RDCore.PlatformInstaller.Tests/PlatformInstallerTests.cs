@@ -43,7 +43,10 @@ public sealed class PlatformInstallerTests : IDisposable
         public List<InstallProgress> Reports { get; } = [];
         public void Report(InstallProgress value)
         {
-            lock (Reports) Reports.Add(value);
+            lock (Reports)
+            {
+                Reports.Add(value);
+            }
         }
     }
 

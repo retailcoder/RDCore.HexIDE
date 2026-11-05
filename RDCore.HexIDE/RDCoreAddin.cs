@@ -31,7 +31,9 @@ public sealed class RDCoreAddin : IAddin
         host.Events.ProjectUnloaded += OnProjectUnloaded;
         // Add-ins initialise once HexIDE is up, after any project it was started with has opened.
         foreach (var project in host.Project.GetProjects())
+        {
             Observe(server.ProjectLoadedAsync(project.ProjectPath));
+        }
     }
 
     private void OnProjectLoaded(AddinProjectEventArgs project) => Observe(server?.ProjectLoadedAsync(project.ProjectPath));

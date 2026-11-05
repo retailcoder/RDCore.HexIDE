@@ -69,14 +69,27 @@ internal sealed class FakeGitHub : HttpMessageHandler
 
     protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
     {
-        lock (Requests) Requests.Add(request.RequestUri!);
+        lock (Requests)
+        {
+            Requests.Add(request.RequestUri!);
+        }
+
         var url = request.RequestUri!.GetLeftPart(UriPartial.Path);
         if (url == "https://api.github.com/repos/rubberduck-vba/RDCore/releases")
+        {
             return new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(JsonSerializer.Serialize(releases)) };
+        }
+
         if (!files.TryGetValue(url, out var content))
+        {
             return new HttpResponseMessage(HttpStatusCode.NotFound);
+        }
+
         if (url.EndsWith(".zip", StringComparison.Ordinal) && DownloadGate is { } gate)
+        {
             await gate.Task.WaitAsync(cancellationToken);
+        }
+
         return new HttpResponseMessage(HttpStatusCode.OK) { Content = new ByteArrayContent(content) };
     }
 }

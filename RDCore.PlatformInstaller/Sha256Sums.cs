@@ -11,11 +11,15 @@ internal static class Sha256Sums
             var entry = line.TrimEnd('\r');
             var space = entry.IndexOf(' ');
             if (space != 64)
+            {
                 continue;
+            }
             // sha256sum marks a file read in binary mode with '*' before its name.
             var name = entry[(space + 1)..].TrimStart(' ').TrimStart('*');
             if (name == fileName)
+            {
                 return entry[..space].ToLowerInvariant();
+            }
         }
         return null;
     }

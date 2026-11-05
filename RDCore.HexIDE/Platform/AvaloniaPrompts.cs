@@ -101,9 +101,13 @@ internal sealed class AvaloniaPrompts : IUserPrompts
             panel.Children.Add(stage);
             panel.Children.Add(bar);
             if (MainWindow is { } owner)
+            {
                 window.Show(owner);
+            }
             else
+            {
                 window.Show();
+            }
         }
 
         public void Report(InstallProgress value) => Dispatcher.UIThread.Post(() =>
@@ -117,7 +121,9 @@ internal sealed class AvaloniaPrompts : IUserPrompts
             };
             bar.IsIndeterminate = value.Stage != InstallStage.Downloading || value.TotalBytes is not > 0;
             if (value.TotalBytes is > 0 and var total)
+            {
                 bar.Value = (double)value.Bytes / total;
+            }
         });
 
         public void Dispose() => Dispatcher.UIThread.Post(window.Close);

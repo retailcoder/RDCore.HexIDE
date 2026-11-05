@@ -51,7 +51,10 @@ public sealed class PlatformInstaller
         {
             var state = ReadState();
             if (state.Current is not { } current || !PlatformVersion.TryParse(current, out var version))
+            {
                 return null;
+            }
+
             var root = VersionRoot(version);
             return File.Exists(Path.Combine(root, "rdcore.json")) ? new InstalledPlatform(version, root) : null;
         }
@@ -74,9 +77,13 @@ public sealed class PlatformInstaller
 
         var root = VersionRoot(release.Version);
         if (!File.Exists(Path.Combine(root, "rdcore.json")))
+        {
             await DeployAsync(release, root, progress, cancellationToken);
+        }
         else
+        {
             progress?.Report(new InstallProgress(InstallStage.Deploying));
+        }
 
         MakeCurrent(release.Version);
         RemoveOldVersions();
@@ -98,8 +105,10 @@ public sealed class PlatformInstaller
             var actual = await DownloadAsync(release, archive, progress, cancellationToken);
             progress?.Report(new InstallProgress(InstallStage.Verifying));
             if (actual != expected)
+            {
                 throw new InvalidDataException(
                     $"{release.ArchiveName} doesn't match the release's checksum: it may be damaged, or not the release's own file.");
+            }
 
             progress?.Report(new InstallProgress(InstallStage.Extracting));
             DeleteFolder(unpacked);
@@ -152,7 +161,9 @@ public sealed class PlatformInstaller
     {
         var manifestPath = Path.Combine(root, "rdcore.json");
         if (!File.Exists(manifestPath))
+        {
             throw new InvalidDataException($"{release.ArchiveName} isn't an RDCore platform: it has no rdcore.json at its root.");
+        }
 
         string? languageServer;
         try
@@ -164,11 +175,15 @@ public sealed class PlatformInstaller
             throw new InvalidDataException($"{release.ArchiveName}'s rdcore.json can't be read: {ex.Message}", ex);
         }
         if (string.IsNullOrWhiteSpace(languageServer))
+        {
             throw new InvalidDataException($"{release.ArchiveName}'s rdcore.json names no language server.");
+        }
 
         var path = Path.GetFullPath(Path.Combine(root, languageServer));
         if (!File.Exists(path) && !File.Exists(path + ".exe"))
+        {
             throw new InvalidDataException($"{release.ArchiveName} has no language server at {languageServer}, which its rdcore.json names.");
+        }
     }
 
     private string VersionRoot(PlatformVersion version) => Path.Combine(options.Root, VersionsFolder, version.Text);
@@ -192,7 +207,10 @@ public sealed class PlatformInstaller
     {
         var state = ReadState();
         if (state.Current != version.Text)
+        {
             state = state with { Current = version.Text, Previous = state.Current };
+        }
+
         var path = Path.Combine(options.Root, StateFile);
         var temporary = path + ".tmp";
         File.WriteAllText(temporary, JsonSerializer.Serialize(state));
@@ -209,7 +227,10 @@ public sealed class PlatformInstaller
         {
             var name = Path.GetFileName(folder);
             if (name == state.Current || name == state.Previous || !PlatformVersion.TryParse(name, out _))
+            {
                 continue;
+            }
+
             try
             {
                 Directory.Delete(folder, recursive: true);
@@ -224,7 +245,9 @@ public sealed class PlatformInstaller
     private static void DeleteFolder(string path)
     {
         if (Directory.Exists(path))
+        {
             Directory.Delete(path, recursive: true);
+        }
     }
 
     // An exclusive handle on a file under the root: held for the installation, released with it, and freed by the system if

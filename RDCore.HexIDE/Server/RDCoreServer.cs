@@ -40,7 +40,10 @@ internal sealed class RDCoreServer(IHexIdeHost host, PlatformSource platform, IU
     public Task ProjectLoadedAsync(string projectPath)
     {
         if (disposed || !IsRDCoreProject(projectPath) || !openProjects.Add(projectPath) || openProjects.Count > 1)
+        {
             return Task.CompletedTask;
+        }
+
         return RegisterAsync(projectPath);
     }
 
@@ -48,7 +51,10 @@ internal sealed class RDCoreServer(IHexIdeHost host, PlatformSource platform, IU
     public void ProjectUnloaded(string projectPath)
     {
         if (!openProjects.Remove(projectPath) || openProjects.Count > 0)
+        {
             return;
+        }
+
         TakeOut();
     }
 
@@ -58,7 +64,9 @@ internal sealed class RDCoreServer(IHexIdeHost host, PlatformSource platform, IU
         var root = await platform.GetRootAsync(attempt.Token);
         // Closed while the platform was found or installed: there is nothing to register for.
         if (root is null || attempt.IsCancellationRequested || openProjects.Count == 0)
+        {
             return;
+        }
 
         RDCoreLanguageServerLaunch launch;
         try

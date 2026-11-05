@@ -18,7 +18,10 @@ public class ConnectionChannelTests
 
         await Assert.ThrowsExactlyAsync<InvalidOperationException>(() => claimed(null, TestContext.CancellationToken));
         using (channel.OnRequest(RDCorePlatformProtocol.SessionMessageBox, (_, _) => Task.FromResult<JsonElement?>(answer)))
+        {
             Assert.AreEqual(answer, await claimed(null, TestContext.CancellationToken));
+        }
+
         await Assert.ThrowsExactlyAsync<InvalidOperationException>(() => claimed(null, TestContext.CancellationToken));
     }
 

@@ -28,6 +28,8 @@
     <Nullable>enable</Nullable>
     <LangVersion>latest</LangVersion>
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <!-- .editorconfig's style rules are build errors, so the style holds without a reviewer counting braces. -->
+    <EnforceCodeStyleInBuild>true</EnforceCodeStyleInBuild>
   </PropertyGroup>
 
   <!-- the sources the add-in builds against until they are packages. tools/Get-Dependencies.ps1 fetches them into deps/, at the

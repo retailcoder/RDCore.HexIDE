@@ -32,26 +32,40 @@ public sealed record PlatformVersion : IComparable<PlatformVersion>
     {
         version = null;
         if (string.IsNullOrWhiteSpace(text))
+        {
             return false;
+        }
 
         var value = text.Trim();
         if (value.StartsWith('v') || value.StartsWith('V'))
+        {
             value = value[1..];
+        }
+
         var plus = value.IndexOf('+');
         if (plus >= 0)
+        {
             value = value[..plus];
+        }
 
         var dash = value.IndexOf('-');
         var core = dash >= 0 ? value[..dash] : value;
         var prerelease = dash >= 0 ? value[(dash + 1)..].Split('.') : [];
         if (prerelease.Any(identifier => identifier.Length == 0 || !identifier.All(c => char.IsAsciiLetterOrDigit(c) || c == '-')))
+        {
             return false;
+        }
 
         var numbers = core.Split('.');
         if (numbers.Length != 3 || !numbers.All(n => n.Length > 0 && n.All(char.IsAsciiDigit)))
+        {
             return false;
+        }
+
         if (!Version.TryParse(core, out var parsed))
+        {
             return false;
+        }
 
         version = new PlatformVersion(parsed, prerelease, value);
         return true;
@@ -66,18 +80,28 @@ public sealed record PlatformVersion : IComparable<PlatformVersion>
     public int CompareTo(PlatformVersion? other)
     {
         if (other is null)
+        {
             return 1;
+        }
+
         var byCore = Core.CompareTo(other.Core);
         if (byCore != 0)
+        {
             return byCore;
+        }
+
         if (IsPrerelease != other.IsPrerelease)
+        {
             return IsPrerelease ? -1 : 1;
+        }
 
         for (var i = 0; i < Math.Min(Prerelease.Count, other.Prerelease.Count); i++)
         {
             var byIdentifier = CompareIdentifiers(Prerelease[i], other.Prerelease[i]);
             if (byIdentifier != 0)
+            {
                 return byIdentifier;
+            }
         }
         return Prerelease.Count.CompareTo(other.Prerelease.Count);
     }
@@ -88,9 +112,15 @@ public sealed record PlatformVersion : IComparable<PlatformVersion>
         var aNumeric = a.All(char.IsAsciiDigit);
         var bNumeric = b.All(char.IsAsciiDigit);
         if (aNumeric && bNumeric)
+        {
             return a.Length != b.Length ? a.Length.CompareTo(b.Length) : string.CompareOrdinal(a, b);
+        }
+
         if (aNumeric != bNumeric)
+        {
             return aNumeric ? -1 : 1;
+        }
+
         return string.CompareOrdinal(a, b);
     }
 
