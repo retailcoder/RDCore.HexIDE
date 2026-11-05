@@ -56,4 +56,31 @@ Télécharger RDCore {0} maintenant? Le téléchargement fait environ {1}, provi
   <data name="Megabytes" xml:space="preserve">
     <value>{0:0} Mo</value>
   </data>
+  <data name="TimedOut" xml:space="preserve">
+    <value>La plateforme de RDCore n'a pas pu être téléchargée : GitHub a mis trop de temps à répondre. Rouvrez le projet pour réessayer.</value>
+  </data>
+  <data name="ChecksumMismatch" xml:space="preserve">
+    <value>La plateforme de RDCore n'a pas été installée : le téléchargement ne correspond pas à la somme de contrôle de sa publication. Il a peut-être été endommagé en route; rouvrez le projet pour réessayer.</value>
+  </data>
+  <data name="NotAPlatform" xml:space="preserve">
+    <value>La plateforme de RDCore n'a pas été installée : ce qui a été téléchargé n'est pas une plateforme RDCore.</value>
+  </data>
+  <data name="TooLarge" xml:space="preserve">
+    <value>La plateforme de RDCore n'a pas été installée : le téléchargement est plus gros qu'une plateforme RDCore ne peut l'être.</value>
+  </data>
+  <data name="ReleasesUnreadable" xml:space="preserve">
+    <value>Les publications de RDCore n'ont pas pu être lues : la réponse de GitHub n'était pas une liste de publications. GitHub limite peut-être la fréquence des requêtes; réessayez plus tard.</value>
+  </data>
+  <data name="NoManifest" xml:space="preserve">
+    <value>il n'y a pas de rdcore.json.</value>
+  </data>
+  <data name="VersionGone" xml:space="preserve">
+    <value>RDCore {0}, qu'exécute le serveur de ce projet, n'est plus sur ce poste, et sa publication n'est plus disponible.</value>
+  </data>
+  <data name="PlatformGone" xml:space="preserve">
+    <value>RDCore {0}, qu'exécute le serveur de ce projet, n'est plus sur ce poste.</value>
+  </data>
+  <data name="ServerNotRegistered" xml:space="preserve">
+    <value>HexIDE n'a pas accepté le serveur de langage de RDCore : {0}</value>
+  </data>
 </root>

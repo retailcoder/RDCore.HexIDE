@@ -27,6 +27,7 @@ internal sealed class RDCoreServer(IHexIdeHost host, PlatformSource platform, IU
     private readonly HashSet<string> openProjects = new(OperatingSystem.IsWindows() ? StringComparer.OrdinalIgnoreCase : StringComparer.Ordinal);
     private CancellationTokenSource? registering;
     private IAddinServerConnection? connection;
+    private IDisposable? lease;
     private bool disposed;
 
     /// <summary>The connection while the server is registered; null otherwise.</summary>
@@ -61,9 +62,9 @@ internal sealed class RDCoreServer(IHexIdeHost host, PlatformSource platform, IU
     private async Task RegisterAsync(string projectPath)
     {
         var attempt = registering = new CancellationTokenSource();
-        var root = await platform.GetRootAsync(attempt.Token);
+        var choice = await platform.GetAsync(attempt.Token);
         // Closed while the platform was found or installed: there is nothing to register for.
-        if (root is null || attempt.IsCancellationRequested || openProjects.Count == 0)
+        if (choice is null || attempt.IsCancellationRequested || openProjects.Count == 0)
         {
             return;
         }
@@ -71,33 +72,51 @@ internal sealed class RDCoreServer(IHexIdeHost host, PlatformSource platform, IU
         RDCoreLanguageServerLaunch launch;
         try
         {
+            // Held while the server is registered, so no installer removes the version it runs from.
+            lease = choice.Installed is { } installed ? PlatformInstaller.PlatformInstaller.Hold(installed) : null;
             launch = RDCoreLanguageServerLaunch.Prepare(new RDCoreLanguageServerLaunchOptions
             {
-                PlatformRoot = root,
+                PlatformRoot = choice.Root,
                 Workspace = new Uri(Path.GetDirectoryName(Path.GetFullPath(projectPath)) + Path.DirectorySeparatorChar).AbsoluteUri,
             });
         }
-        catch (Exception ex) when (ex is IOException or InvalidDataException or ArgumentException)
+        catch (Exception ex) when (ex is IOException or InvalidDataException or ArgumentException or UnauthorizedAccessException)
         {
-            await prompts.TellAsync(Strings.PlatformRootUnusable(root, ex.Message));
+            ReleaseLease();
+            await prompts.TellAsync(Strings.PlatformRootUnusable(choice.Root, ex.Message));
             return;
         }
 
         var channel = new ConnectionChannel();
         var client = new RDCorePlatformClient(channel);
-        connection = host.RegisterLanguageServer(new AddinLanguageServer(Entry(launch))
+        try
         {
-            BeforeLaunch = token => platform.EnsureStillThereAsync(launch.PlatformRoot, token),
-            BeforeLaunchTimeout = BeforeLaunchTimeout,
-            AfterStart = async (current, token) =>
+            connection = host.RegisterLanguageServer(new AddinLanguageServer(Entry(launch))
             {
-                channel.Connect(current);
-                await client.InitializeAsync(CoreServerComponent.LanguageServer,
-                    new CorePlatformClientCapabilities { LanguageServer = new() }, token);
-            },
-            MessagePrefix = "rdcore/",
-            ServerMethods = channel.ServerMethods,
-        });
+                BeforeLaunch = token => platform.EnsureStillThereAsync(choice, token),
+                BeforeLaunchTimeout = BeforeLaunchTimeout,
+                AfterStart = async (current, token) =>
+                {
+                    channel.Connect(current);
+                    await client.InitializeAsync(CoreServerComponent.LanguageServer,
+                        new CorePlatformClientCapabilities { LanguageServer = new() }, token);
+                },
+                MessagePrefix = "rdcore/",
+                ServerMethods = channel.ServerMethods,
+            });
+        }
+        catch (Exception ex) when (ex is ArgumentException or InvalidOperationException)
+        {
+            // The entry was refused, or another server has the id: HexIDE's Language Servers window says which too.
+            ReleaseLease();
+            await prompts.TellAsync(Strings.ServerNotRegistered(ex.Message));
+        }
+    }
+
+    private void ReleaseLease()
+    {
+        lease?.Dispose();
+        lease = null;
     }
 
     /// <summary>
@@ -126,6 +145,7 @@ internal sealed class RDCoreServer(IHexIdeHost host, PlatformSource platform, IU
         registering = null;
         connection?.Dispose();
         connection = null;
+        ReleaseLease();
     }
 
     /// <inheritdoc/>

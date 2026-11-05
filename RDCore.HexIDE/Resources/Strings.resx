@@ -56,4 +56,31 @@ Download RDCore {0} now? It is about {1}, from {2}, and goes in {3}.</value>
   <data name="Megabytes" xml:space="preserve">
     <value>{0:0} MB</value>
   </data>
+  <data name="TimedOut" xml:space="preserve">
+    <value>RDCore's platform couldn't be downloaded: GitHub took too long to answer. Open the project again to try again.</value>
+  </data>
+  <data name="ChecksumMismatch" xml:space="preserve">
+    <value>RDCore's platform wasn't installed: the download doesn't match its release's checksum. It may have been damaged on the way; open the project again to try again.</value>
+  </data>
+  <data name="NotAPlatform" xml:space="preserve">
+    <value>RDCore's platform wasn't installed: what was downloaded isn't an RDCore platform.</value>
+  </data>
+  <data name="TooLarge" xml:space="preserve">
+    <value>RDCore's platform wasn't installed: the download is bigger than an RDCore platform can be.</value>
+  </data>
+  <data name="ReleasesUnreadable" xml:space="preserve">
+    <value>RDCore's releases couldn't be read: GitHub's answer wasn't a list of releases. It may be limiting how often it is asked; try again later.</value>
+  </data>
+  <data name="NoManifest" xml:space="preserve">
+    <value>it has no rdcore.json.</value>
+  </data>
+  <data name="VersionGone" xml:space="preserve">
+    <value>RDCore {0}, which this project's server runs, is no longer on this machine, and its release is no longer published.</value>
+  </data>
+  <data name="PlatformGone" xml:space="preserve">
+    <value>RDCore {0}, which this project's server runs, is no longer on this machine.</value>
+  </data>
+  <data name="ServerNotRegistered" xml:space="preserve">
+    <value>HexIDE didn't take RDCore's language server: {0}</value>
+  </data>
 </root>
