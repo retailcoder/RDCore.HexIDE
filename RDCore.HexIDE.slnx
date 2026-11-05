@@ -17,4 +17,6 @@
   </Folder>
   <Project Path="RDCore.PlatformInstaller/RDCore.PlatformInstaller.csproj" />
   <Project Path="RDCore.PlatformInstaller.Tests/RDCore.PlatformInstaller.Tests.csproj" />
+  <Project Path="RDCore.HexIDE/RDCore.HexIDE.csproj" />
+  <Project Path="RDCore.HexIDE.Tests/RDCore.HexIDE.Tests.csproj" />
 </Solution>

@@ -1,0 +1,59 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <data name="DownloadTitle" xml:space="preserve">
+    <value>RDCore platform</value>
+  </data>
+  <data name="DownloadQuestion" xml:space="preserve">
+    <value>This project is an RDCore project, and RDCore's platform isn't on this machine yet.
+
+Download RDCore {0} now? It is about {1}, from {2}, and goes in {3}.</value>
+  </data>
+  <data name="DownloadYes" xml:space="preserve">
+    <value>Download</value>
+  </data>
+  <data name="DownloadNo" xml:space="preserve">
+    <value>Not now</value>
+  </data>
+  <data name="Downloading" xml:space="preserve">
+    <value>Downloading RDCore {0}…</value>
+  </data>
+  <data name="Verifying" xml:space="preserve">
+    <value>Checking the download…</value>
+  </data>
+  <data name="Extracting" xml:space="preserve">
+    <value>Unpacking…</value>
+  </data>
+  <data name="Deploying" xml:space="preserve">
+    <value>Finishing…</value>
+  </data>
+  <data name="NoRelease" xml:space="preserve">
+    <value>No RDCore release is published for this machine yet, so RDCore can't run for this project.</value>
+  </data>
+  <data name="ReleasesUnreachable" xml:space="preserve">
+    <value>RDCore's releases couldn't be reached, so RDCore can't run for this project yet: {0}</value>
+  </data>
+  <data name="InstallFailed" xml:space="preserve">
+    <value>RDCore's platform couldn't be installed, so RDCore can't run for this project: {0}</value>
+  </data>
+  <data name="PlatformRootUnusable" xml:space="preserve">
+    <value>The RDCore platform at {0} can't be used: {1}</value>
+  </data>
+  <data name="Ok" xml:space="preserve">
+    <value>OK</value>
+  </data>
+  <data name="Megabytes" xml:space="preserve">
+    <value>{0:0} MB</value>
+  </data>
+</root>

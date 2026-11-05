@@ -1,0 +1,59 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <data name="DownloadTitle" xml:space="preserve">
+    <value>Plateforme RDCore</value>
+  </data>
+  <data name="DownloadQuestion" xml:space="preserve">
+    <value>Ce projet est un projet RDCore, et la plateforme de RDCore n'est pas encore sur ce poste.
+
+Télécharger RDCore {0} maintenant? Le téléchargement fait environ {1}, provient de {2}, et sera placé dans {3}.</value>
+  </data>
+  <data name="DownloadYes" xml:space="preserve">
+    <value>Télécharger</value>
+  </data>
+  <data name="DownloadNo" xml:space="preserve">
+    <value>Pas maintenant</value>
+  </data>
+  <data name="Downloading" xml:space="preserve">
+    <value>Téléchargement de RDCore {0}…</value>
+  </data>
+  <data name="Verifying" xml:space="preserve">
+    <value>Vérification du téléchargement…</value>
+  </data>
+  <data name="Extracting" xml:space="preserve">
+    <value>Décompression…</value>
+  </data>
+  <data name="Deploying" xml:space="preserve">
+    <value>Finalisation…</value>
+  </data>
+  <data name="NoRelease" xml:space="preserve">
+    <value>Aucune version de RDCore n'est encore publiée pour ce poste : RDCore ne peut donc pas s'exécuter pour ce projet.</value>
+  </data>
+  <data name="ReleasesUnreachable" xml:space="preserve">
+    <value>Les publications de RDCore sont injoignables : RDCore ne peut donc pas encore s'exécuter pour ce projet. {0}</value>
+  </data>
+  <data name="InstallFailed" xml:space="preserve">
+    <value>La plateforme de RDCore n'a pas pu être installée : RDCore ne peut donc pas s'exécuter pour ce projet. {0}</value>
+  </data>
+  <data name="PlatformRootUnusable" xml:space="preserve">
+    <value>La plateforme RDCore située dans {0} est inutilisable : {1}</value>
+  </data>
+  <data name="Ok" xml:space="preserve">
+    <value>OK</value>
+  </data>
+  <data name="Megabytes" xml:space="preserve">
+    <value>{0:0} Mo</value>
+  </data>
+</root>

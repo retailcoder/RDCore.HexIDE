@@ -1,0 +1,50 @@
+using System.Globalization;
+using System.Resources;
+
+namespace RDCore.HexIDE.Resources;
+
+/// <summary>What the add-in says to its user, in English and in French (<c>Strings.resx</c>, <c>Strings.fr.resx</c>).</summary>
+internal static class Strings
+{
+    private static readonly ResourceManager Resources = new("RDCore.HexIDE.Resources.Strings", typeof(Strings).Assembly);
+
+    private static string Get(string name) => Resources.GetString(name, CultureInfo.CurrentUICulture) ?? name;
+
+    private static string Format(string name, params object[] values) =>
+        string.Format(CultureInfo.CurrentUICulture, Get(name), values);
+
+    public static string DownloadTitle => Get(nameof(DownloadTitle));
+
+    /// <summary>{0}: the version; {1}: its size; {2}: where it comes from; {3}: where it goes.</summary>
+    public static string DownloadQuestion(string version, string size, string source, string target) =>
+        Format(nameof(DownloadQuestion), version, size, source, target);
+
+    public static string DownloadYes => Get(nameof(DownloadYes));
+
+    public static string DownloadNo => Get(nameof(DownloadNo));
+
+    /// <summary>{0}: the version.</summary>
+    public static string Downloading(string version) => Format(nameof(Downloading), version);
+
+    public static string Verifying => Get(nameof(Verifying));
+
+    public static string Extracting => Get(nameof(Extracting));
+
+    public static string Deploying => Get(nameof(Deploying));
+
+    public static string NoRelease => Get(nameof(NoRelease));
+
+    /// <summary>{0}: why.</summary>
+    public static string ReleasesUnreachable(string reason) => Format(nameof(ReleasesUnreachable), reason);
+
+    /// <summary>{0}: why.</summary>
+    public static string InstallFailed(string reason) => Format(nameof(InstallFailed), reason);
+
+    /// <summary>{0}: the folder; {1}: why.</summary>
+    public static string PlatformRootUnusable(string root, string reason) => Format(nameof(PlatformRootUnusable), root, reason);
+
+    public static string Ok => Get(nameof(Ok));
+
+    /// <summary>{0}: a size in megabytes.</summary>
+    public static string Megabytes(double megabytes) => Format(nameof(Megabytes), megabytes);
+}

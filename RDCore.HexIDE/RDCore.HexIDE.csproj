@@ -1,0 +1,27 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- the add-in HexIDE loads: what it ships is copied beside it, and nothing HexIDE shares with its add-ins. -->
+  <PropertyGroup>
+    <OutputType>Library</OutputType>
+    <RootNamespace>RDCore.HexIDE</RootNamespace>
+    <CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- the add-in contract: HexIDE's own copy is the one loaded, so none ships with the add-in. -->
+    <ProjectReference Include="$(HexIdeCoreProject)" Private="false" />
+    <ProjectReference Include="$(RDCoreProtocolProject)" />
+    <ProjectReference Include="..\RDCore.PlatformInstaller\RDCore.PlatformInstaller.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- HexIDE's own Avalonia is the one loaded, for the same reason. -->
+    <PackageReference Include="Avalonia" Version="$(HexIdeAvaloniaVersion)" ExcludeAssets="runtime" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="RDCore.HexIDE.Tests" />
+    <InternalsVisibleTo Include="DynamicProxyGenAssembly2" />
+  </ItemGroup>
+
+</Project>
