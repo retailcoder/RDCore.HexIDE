@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using HexIDE.Addins;
 using RDCore.HexIDE.Platform;
+using RDCore.HexIDE.Projects;
 using RDCore.HexIDE.Server;
 using RDCore.PlatformInstaller;
 
@@ -15,11 +16,17 @@ public sealed class RDCoreAddin : IAddin
     private IHexIdeHost? host;
     private HttpClient? http;
     private RDCoreServer? server;
+    private RDCoreProjectType? projectType;
+    private IDisposable? projectTypeRegistration;
 
     /// <inheritdoc/>
     public void Initialize(IHexIdeHost host)
     {
         this.host = host;
+        // HexIDE opens a .rdproj through the add-in, as a project whose file RDCore's language server writes.
+        projectType = new RDCoreProjectType();
+        projectTypeRegistration = host.RegisterProjectType(projectType.Type);
+
         var settings = AddinSettings.Load(AddinSettings.DefaultPath);
         http = new HttpClient();
         var installer = new PlatformInstaller.PlatformInstaller(
@@ -52,6 +59,8 @@ public sealed class RDCoreAddin : IAddin
             host.Events.ProjectUnloaded -= OnProjectUnloaded;
         }
         server?.Dispose();
+        projectTypeRegistration?.Dispose();
+        projectType?.Dispose();
         http?.Dispose();
     }
 }
