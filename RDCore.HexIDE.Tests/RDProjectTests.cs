@@ -7,11 +7,14 @@ namespace RDCore.HexIDE.Tests;
 [TestClass]
 public sealed class RDProjectTests : IDisposable
 {
-    private readonly string root = Path.Combine(Path.GetTempPath(), "rdcore-rdproj-" + Guid.NewGuid().ToString("N"));
+    // The project's folder is in a folder of its own, where a test puts what is outside the project; both go with the test.
+    private readonly string container = Path.Combine(Path.GetTempPath(), "rdcore-rdproj-" + Guid.NewGuid().ToString("N"));
+    private readonly string root;
     private readonly List<string> told = [];
 
     public RDProjectTests()
     {
+        root = Path.Combine(container, "Ledger");
         Directory.CreateDirectory(Path.Combine(root, "src", "Classes"));
         Write("src/Main.bas", "Attribute VB_Name = \"Startup\"\r\nSub Main()\r\nEnd Sub\r\n");
         Write("src/Classes/Account.cls", "VERSION 1.0 CLASS\r\nBEGIN\r\n  MultiUse = -1  'True\r\nEND\r\nAttribute VB_Name = \"Account\"\r\n");
@@ -25,7 +28,7 @@ public sealed class RDProjectTests : IDisposable
     {
         try
         {
-            Directory.Delete(root, recursive: true);
+            Directory.Delete(container, recursive: true);
         }
         catch (DirectoryNotFoundException)
         {
@@ -80,9 +83,9 @@ public sealed class RDProjectTests : IDisposable
     [TestMethod]
     public void A_member_or_folder_outside_the_project_s_folder_is_left_out()
     {
-        File.WriteAllText(Path.Combine(Path.GetTempPath(), "rdcore-outside.bas"), "Attribute VB_Name = \"Outside\"\r\n");
-        var absolute = Path.Combine(Path.GetTempPath(), "rdcore-outside.bas").Replace("\\", "\\\\");
-        WriteProject($$"""["src/Main.bas", "../rdcore-outside.bas", "src/../../rdcore-outside.bas", "{{absolute}}"]""");
+        var outside = Path.Combine(container, "Outside.bas");
+        File.WriteAllText(outside, "Attribute VB_Name = \"Outside\"\r\n");
+        WriteProject($$"""["src/Main.bas", "../Outside.bas", "src/../../Outside.bas", "{{outside.Replace("\\", "\\\\")}}"]""");
 
         var project = RDProject.Read(ProjectFile);
 
