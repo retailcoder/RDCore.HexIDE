@@ -1,7 +1,5 @@
 using System.Security.Cryptography;
-using System.Text;
 using System.Text.Json;
-using System.Text.RegularExpressions;
 using HexIDE.Addins;
 using RDCore.SDK.Workspace;
 
@@ -20,11 +18,9 @@ internal sealed record RDProjectMember(string Path, AddinMemberKind Kind, string
 /// <param name="Members">Its modules and other files, in the order the file lists them.</param>
 /// <param name="References">Its references, in priority order.</param>
 /// <param name="Folders">Its folders, relative to the project file's folder.</param>
-internal sealed partial record RDProject(string Name, IReadOnlyList<RDProjectMember> Members,
+internal sealed record RDProject(string Name, IReadOnlyList<RDProjectMember> Members,
     IReadOnlyList<AddinProjectReference> References, IReadOnlyList<string> Folders)
 {
-    private static readonly JsonSerializerOptions Json = new() { PropertyNameCaseInsensitive = true };
-
     /// <summary>What HexIDE is given of it.</summary>
     public AddinProjectContent Content => new(Name)
     {
@@ -42,8 +38,9 @@ internal sealed partial record RDProject(string Name, IReadOnlyList<RDProjectMem
         ProjectFile file;
         try
         {
-            file = JsonSerializer.Deserialize<ProjectFile>(File.ReadAllText(path), Json)
-                ?? throw new InvalidDataException($"{path} is empty.");
+            // Read whole first, so the platform's reader runs over memory and finishes before it returns.
+            using var content = new MemoryStream(File.ReadAllBytes(path), writable: false);
+            file = ProjectFile.ReadAsync(content, new Uri(root).AbsoluteUri).GetAwaiter().GetResult();
         }
         catch (JsonException ex)
         {
@@ -93,28 +90,21 @@ internal sealed partial record RDProject(string Name, IReadOnlyList<RDProjectMem
         return full.StartsWith(prefix, comparison) ? full : null;
     }
 
-    /// <summary>
-    /// What a module is, by RDCore's own rule (<c>ModuleKinds.Of</c> in RDCore.SDK): a document module when the project says whose
-    /// document it is, whatever its text; otherwise a class module when its text has a <c>VERSION</c> header, and a standard
-    /// module when it hasn't, or can't be read.
-    /// </summary>
-    internal static AddinMemberKind KindOf(DocClassType? super, string? source) =>
-        super is not null ? AddinMemberKind.DocumentModule
-        : source is { Length: > 0 } && VersionHeader().IsMatch(source) ? AddinMemberKind.ClassModule
-        : AddinMemberKind.StandardModule;
+    /// <summary>What a module is, by the platform's own rule (<see cref="ProjectModuleKinds"/>), as HexIDE names it.</summary>
+    internal static AddinMemberKind KindOf(DocClassType? super, string? source) => ProjectModuleKinds.Of(super, source) switch
+    {
+        ProjectModuleKind.Document => AddinMemberKind.DocumentModule,
+        ProjectModuleKind.Class => AddinMemberKind.ClassModule,
+        _ => AddinMemberKind.StandardModule,
+    };
 
-    // RDCore.SDK's ModuleHeader.IsClassModule: the VERSION line VBA writes as a class or designer module's first line.
-    [GeneratedRegex(@"^[ \t]*VERSION[ \t]+[0-9]+(?:\.[0-9]+)?(?:[ \t]+CLASS)?[ \t]*\r?$",
-        RegexOptions.Multiline | RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
-    private static partial Regex VersionHeader();
-
-    // Read as Latin-1, which loses no byte: the header is ASCII whatever the module's code page.
+    // Decoded as the environment host and the language server decode a module, so its kind is the one they find.
     private static (string? Source, string? Digest) ReadMember(string path)
     {
         try
         {
             var bytes = File.ReadAllBytes(path);
-            return (Encoding.Latin1.GetString(bytes), Convert.ToHexStringLower(SHA256.HashData(bytes)));
+            return (ProjectModuleKinds.ReadText(bytes), Convert.ToHexStringLower(SHA256.HashData(bytes)));
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {

@@ -38,6 +38,8 @@ foreach ($name in $pins.Keys | Where-Object { $_ -ne '$comment' }) {
         Invoke-Git -C $folder remote add origin $pin.repository
     }
 
+    # A pin may move to another repository (a fork, before its branch merges), so the remote follows it.
+    Invoke-Git -C $folder remote set-url origin $pin.repository
     Write-Host "Fetching $name at $($pin.commit.Substring(0, 8)) from $($pin.repository)..."
     Invoke-Git -C $folder sparse-checkout set --no-cone @($pin.paths)
     Invoke-Git -C $folder fetch --quiet --depth 1 origin $pin.commit

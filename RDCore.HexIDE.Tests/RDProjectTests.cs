@@ -80,6 +80,39 @@ public sealed class RDProjectTests : IDisposable
     }
 
     [TestMethod]
+    public void A_module_is_decoded_as_the_platform_decodes_it_so_a_UTF16_class_is_a_class()
+    {
+        File.WriteAllText(Full("src/Classes/Account.cls"), "VERSION 1.0 CLASS\r\nAttribute VB_Name = \"Account\"\r\n", System.Text.Encoding.Unicode);
+        WriteProject("""["src/Classes/Account.cls"]""");
+
+        var project = RDProject.Read(ProjectFile);
+
+        Assert.AreEqual(AddinMemberKind.ClassModule, project.Members.First().Kind);
+    }
+
+    [TestMethod]
+    public void The_standard_library_is_no_reference_of_a_project()
+    {
+        WriteProject("""["src/Main.bas"]""",
+            $$"""[{ "Name": "VBA", "Guid": "000204ef-0000-0000-c000-000000000046", "Major": 4, "Minor": 2, "AbsolutePath": "C:\\Program Files\\Microsoft Office\\VBE7.DLL" }, {{Scripting[1..^1]}}]""");
+
+        var project = RDProject.Read(ProjectFile);
+
+        Assert.AreEqual("Scripting", project.References.Single().Name);
+    }
+
+    [TestMethod]
+    public void Lists_a_project_file_gives_as_null_read_as_empty()
+    {
+        WriteProject("null", references: "null", otherFiles: "null");
+
+        var project = RDProject.Read(ProjectFile);
+
+        Assert.AreEqual(0, project.Members.Count);
+        Assert.AreEqual(0, project.References.Count);
+    }
+
+    [TestMethod]
     public void A_file_that_isn_t_a_project_file_is_refused()
     {
         File.WriteAllText(ProjectFile, "Type=Exe\r\nModule=Main; Main.bas\r\n");
