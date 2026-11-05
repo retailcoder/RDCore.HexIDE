@@ -7,9 +7,9 @@
     "paths": [ "/global.json", "/Directory.Packages.props", "/IDE/Directory.Build.props", "/IDE/HexIDE.Core/" ]
   },
   "RDCore": {
-    "repository": "https://github.com/retailcoder/RDCore.git",
-    "commit": "123386eedb44eca8d86210e947e3178567a1c69d",
-    "note": "retailcoder/RDCore merge/nov05 (rubberduck-vba/RDCore#590's batch): RDCore.SDK.Protocol reads a .rdproj as the platform does (ProjectFile.ReadAsync, ProjectModuleKinds) and prepares the debug adapter's launch (RDCoreDebugAdapterLaunch.Prepare). Back to rubberduck-vba/RDCore main once #590 merges; until it is on nuget.org.",
+    "repository": "https://github.com/rubberduck-vba/RDCore.git",
+    "commit": "c706a4f72f67c981b0e8b267e8351eed73d9c312",
+    "note": "rubberduck-vba/RDCore main (#590): RDCore.SDK.Protocol reads a .rdproj as the platform does (ProjectFile.ReadAsync, ProjectModuleKinds) and prepares the debug adapter's launch (RDCoreDebugAdapterLaunch.Prepare). Until it is on nuget.org.",
     "paths": [ "/Directory.Build.props", "/RDCore.SDK.Protocol/" ]
   }
 }
