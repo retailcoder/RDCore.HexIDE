@@ -1,4 +1,6 @@
 using System.Collections.Concurrent;
+using System.Globalization;
+using System.Net;
 using RDCore.HexIDE.Platform;
 using RDCore.HexIDE.Resources;
 using RDCore.PlatformInstaller;
@@ -120,6 +122,64 @@ public sealed class PlatformSourceTests : IDisposable
         Assert.IsNotNull(choice);
         Assert.IsTrue(prompts.ReportedOn.Count > 0);
         Assert.IsFalse(prompts.ReportedOn.Contains(ui.ThreadId), "the installation reported from the UI thread");
+    }
+
+    [TestMethod]
+    public async Task A_failure_nothing_names_is_still_told_to_the_user()
+    {
+        Assert.IsNull(await Source(new Throwing(new NotSupportedException("Specified method is not supported."))).GetAsync(TestContext.CancellationToken));
+
+        Assert.AreEqual(Strings.InstallFailed(Strings.UnexpectedFailure(nameof(NotSupportedException))), prompts.Told.Single());
+    }
+
+    [TestMethod]
+    public async Task A_failure_nothing_names_before_a_server_starts_says_why_for_HexIDE_to_show()
+    {
+        var choice = await Source(new FakeGitHub().Release("v0.1.0")).GetAsync(TestContext.CancellationToken);
+        Assert.IsNotNull(choice);
+        Directory.Delete(choice.Root, recursive: true);
+
+        var failed = await Assert.ThrowsExactlyAsync<InvalidOperationException>(() =>
+            Source(new Throwing(new InvalidOperationException("Sequence contains no elements."))).EnsureStillThereAsync(choice, TestContext.CancellationToken));
+
+        Assert.AreEqual(Strings.InstallFailed(Strings.UnexpectedFailure(nameof(InvalidOperationException))), failed.Message);
+    }
+
+    [TestMethod]
+    [DataRow("en")]
+    [DataRow("fr-CA")]
+    public async Task Why_GitHub_couldn_t_be_reached_is_told_in_the_user_s_language_and_not_in_the_exception_s(string culture)
+    {
+        var before = CultureInfo.CurrentUICulture;
+        CultureInfo.CurrentUICulture = new CultureInfo(culture);
+        try
+        {
+            var unreachable = new HttpRequestException(HttpRequestError.NameResolutionError, "No such host is known. (api.github.com:443)");
+            Assert.IsNull(await Source(new Throwing(unreachable)).GetAsync(TestContext.CancellationToken));
+            Assert.IsNull(await Source(new Answering(HttpStatusCode.ServiceUnavailable)).GetAsync(TestContext.CancellationToken));
+
+            CollectionAssert.AreEqual(
+                new[] { Strings.ReleasesUnreachable(Strings.NoConnection), Strings.ReleasesUnreachable(Strings.HttpStatus(503)) },
+                prompts.Told);
+            Assert.IsFalse(prompts.Told.Any(told => told.Contains("No such host") || told.Contains("Service Unavailable")));
+            Assert.AreEqual(culture == "en", prompts.Told[0].StartsWith("RDCore's releases"), "told in the culture's language");
+        }
+        finally
+        {
+            CultureInfo.CurrentUICulture = before;
+        }
+    }
+
+    private sealed class Throwing(Exception failure) : HttpMessageHandler
+    {
+        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken) =>
+            throw failure;
+    }
+
+    private sealed class Answering(HttpStatusCode status) : HttpMessageHandler
+    {
+        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken) =>
+            Task.FromResult(new HttpResponseMessage(status));
     }
 
     private sealed class TimingOut : HttpMessageHandler

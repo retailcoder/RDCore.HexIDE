@@ -42,10 +42,10 @@ Télécharger RDCore {0} maintenant? Le téléchargement fait environ {1}, provi
     <value>Aucune version de RDCore n'est encore publiée pour ce poste : RDCore ne peut donc pas s'exécuter pour ce projet.</value>
   </data>
   <data name="ReleasesUnreachable" xml:space="preserve">
-    <value>Les publications de RDCore sont injoignables : RDCore ne peut donc pas encore s'exécuter pour ce projet. {0}</value>
+    <value>RDCore ne peut pas encore s'exécuter pour ce projet, car ses publications sont injoignables : {0}</value>
   </data>
   <data name="InstallFailed" xml:space="preserve">
-    <value>La plateforme de RDCore n'a pas pu être installée : RDCore ne peut donc pas s'exécuter pour ce projet. {0}</value>
+    <value>RDCore ne peut pas s'exécuter pour ce projet, car sa plateforme n'a pas pu être installée : {0}</value>
   </data>
   <data name="PlatformRootUnusable" xml:space="preserve">
     <value>La plateforme RDCore située dans {0} est inutilisable : {1}</value>
@@ -82,5 +82,35 @@ Télécharger RDCore {0} maintenant? Le téléchargement fait environ {1}, provi
   </data>
   <data name="ServerNotRegistered" xml:space="preserve">
     <value>HexIDE n'a pas accepté le serveur de langage de RDCore : {0}</value>
+  </data>
+  <data name="HttpStatus" xml:space="preserve">
+    <value>GitHub a répondu avec le statut HTTP {0}.</value>
+  </data>
+  <data name="SecureConnectionFailed" xml:space="preserve">
+    <value>la connexion sécurisée à GitHub a échoué.</value>
+  </data>
+  <data name="NoConnection" xml:space="preserve">
+    <value>GitHub est injoignable; vérifiez la connexion Internet de ce poste.</value>
+  </data>
+  <data name="AccessDenied" xml:space="preserve">
+    <value>l'accès à un fichier ou à un dossier nécessaire a été refusé.</value>
+  </data>
+  <data name="DiskFull" xml:space="preserve">
+    <value>le disque est plein.</value>
+  </data>
+  <data name="FileProblem" xml:space="preserve">
+    <value>un fichier nécessaire n'a pas pu être lu ou écrit.</value>
+  </data>
+  <data name="UnexpectedFailure" xml:space="preserve">
+    <value>un imprévu est survenu ({0}).</value>
+  </data>
+  <data name="FolderMissing" xml:space="preserve">
+    <value>le dossier n'existe pas.</value>
+  </data>
+  <data name="ManifestUnusable" xml:space="preserve">
+    <value>son rdcore.json est illisible.</value>
+  </data>
+  <data name="LanguageServerMissing" xml:space="preserve">
+    <value>le serveur de langage que nomme son rdcore.json n'y est pas.</value>
   </data>
 </root>

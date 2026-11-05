@@ -96,20 +96,29 @@ internal sealed class PlatformSource(AddinSettings settings, PlatformInstaller.P
             throw new InvalidOperationException(Strings.PlatformRootUnusable(choice.Root, Strings.NoManifest));
         }
 
+        PlatformRelease? release;
+        var agreed = false;
         try
         {
-            var release = await installer.Feed.FindAsync(installed.Version, cancellationToken)
-                ?? throw new InvalidOperationException(Strings.VersionGone(installed.Version.Text));
-            if (!await AskAsync(release))
+            release = await installer.Feed.FindAsync(installed.Version, cancellationToken);
+            if (release is not null && (agreed = await AskAsync(release)))
             {
-                throw new InvalidOperationException(Strings.PlatformGone(installed.Version.Text));
+                await InstallAsync(release, cancellationToken);
             }
-
-            await InstallAsync(release, cancellationToken);
         }
-        catch (Exception ex) when (ex is not InvalidOperationException && Reason(ex, cancellationToken) is { } reason)
+        catch (Exception ex) when (Reason(ex, cancellationToken) is { } reason)
         {
             throw new InvalidOperationException(reason, ex);
+        }
+
+        if (release is null)
+        {
+            throw new InvalidOperationException(Strings.VersionGone(installed.Version.Text));
+        }
+
+        if (!agreed)
+        {
+            throw new InvalidOperationException(Strings.PlatformGone(installed.Version.Text));
         }
     }
 
@@ -144,18 +153,17 @@ internal sealed class PlatformSource(AddinSettings settings, PlatformInstaller.P
         return await Task.Run(() => installer.InstallAsync(release, view, cancellationToken), cancellationToken);
     }
 
-    // What to tell the user of a failure, in their language; null for what isn't one to tell, as a cancellation is.
+    // What to tell the user of a failure, in their language; null only for the cancellation of a project that closed.
     private static string? Reason(Exception failure, CancellationToken cancellationToken) => failure switch
     {
         OperationCanceledException when cancellationToken.IsCancellationRequested => null,
         // HttpClient's own time limit is a cancellation nobody asked for.
         OperationCanceledException => Strings.TimedOut,
-        HttpRequestException ex => Strings.ReleasesUnreachable(ex.Message),
+        HttpRequestException => Strings.ReleasesUnreachable(Failures.Describe(failure)),
         PlatformInstallException { Failure: InstallFailure.ChecksumMismatch } => Strings.ChecksumMismatch,
         PlatformInstallException { Failure: InstallFailure.NotAPlatform } => Strings.NotAPlatform,
         PlatformInstallException { Failure: InstallFailure.TooLarge } => Strings.TooLarge,
         PlatformInstallException { Failure: InstallFailure.UnreadableReleases } => Strings.ReleasesUnreadable,
-        IOException or UnauthorizedAccessException => Strings.InstallFailed(failure.Message),
-        _ => null,
+        _ => Strings.InstallFailed(Failures.Describe(failure)),
     };
 }

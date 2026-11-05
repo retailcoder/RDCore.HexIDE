@@ -80,10 +80,11 @@ internal sealed class RDCoreServer(IHexIdeHost host, PlatformSource platform, IU
                 Workspace = new Uri(Path.GetDirectoryName(Path.GetFullPath(projectPath)) + Path.DirectorySeparatorChar).AbsoluteUri,
             });
         }
-        catch (Exception ex) when (ex is IOException or InvalidDataException or ArgumentException or UnauthorizedAccessException)
+        catch (Exception ex)
         {
             ReleaseLease();
-            await prompts.TellAsync(Strings.PlatformRootUnusable(choice.Root, ex.Message));
+            Failures.Record(ex);
+            await prompts.TellAsync(Strings.PlatformRootUnusable(choice.Root, Unusable(ex)));
             return;
         }
 
@@ -112,6 +113,18 @@ internal sealed class RDCoreServer(IHexIdeHost host, PlatformSource platform, IU
             await prompts.TellAsync(Strings.ServerNotRegistered(ex.Message));
         }
     }
+
+    // Why the launch couldn't be prepared from the platform's root, as RDCoreLanguageServerLaunch.Prepare says, in the user's
+    // language.
+    private static string Unusable(Exception failure) => failure switch
+    {
+        DirectoryNotFoundException => Strings.FolderMissing,
+        FileNotFoundException missing when string.Equals(Path.GetFileName(missing.FileName), "rdcore.json", StringComparison.OrdinalIgnoreCase)
+            => Strings.NoManifest,
+        FileNotFoundException => Strings.LanguageServerMissing,
+        InvalidDataException => Strings.ManifestUnusable,
+        _ => Failures.Reason(failure),
+    };
 
     private void ReleaseLease()
     {

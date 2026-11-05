@@ -83,4 +83,34 @@ Download RDCore {0} now? It is about {1}, from {2}, and goes in {3}.</value>
   <data name="ServerNotRegistered" xml:space="preserve">
     <value>HexIDE didn't take RDCore's language server: {0}</value>
   </data>
+  <data name="HttpStatus" xml:space="preserve">
+    <value>GitHub answered with HTTP status {0}.</value>
+  </data>
+  <data name="SecureConnectionFailed" xml:space="preserve">
+    <value>the secure connection to GitHub failed.</value>
+  </data>
+  <data name="NoConnection" xml:space="preserve">
+    <value>GitHub couldn't be reached; check this machine's internet connection.</value>
+  </data>
+  <data name="AccessDenied" xml:space="preserve">
+    <value>access to a file or a folder it needs was refused.</value>
+  </data>
+  <data name="DiskFull" xml:space="preserve">
+    <value>the disk is full.</value>
+  </data>
+  <data name="FileProblem" xml:space="preserve">
+    <value>a file it needs couldn't be read or written.</value>
+  </data>
+  <data name="UnexpectedFailure" xml:space="preserve">
+    <value>something unexpected happened ({0}).</value>
+  </data>
+  <data name="FolderMissing" xml:space="preserve">
+    <value>the folder doesn't exist.</value>
+  </data>
+  <data name="ManifestUnusable" xml:space="preserve">
+    <value>its rdcore.json can't be read.</value>
+  </data>
+  <data name="LanguageServerMissing" xml:space="preserve">
+    <value>the language server its rdcore.json names isn't there.</value>
+  </data>
 </root>

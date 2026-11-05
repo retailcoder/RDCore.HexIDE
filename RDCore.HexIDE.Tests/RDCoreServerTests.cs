@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Text.Json;
 using HexIDE.Addins;
 using NSubstitute;
@@ -200,6 +201,54 @@ public sealed class RDCoreServerTests : IDisposable
 
         Assert.AreEqual(1, prompts.Told.Count);
         host.DidNotReceiveWithAnyArgs().RegisterLanguageServer(default!);
+    }
+
+    [TestMethod]
+    [DataRow("no folder")]
+    [DataRow("no manifest")]
+    [DataRow("no language server named")]
+    [DataRow("no language server there")]
+    public async Task Why_a_platform_root_can_t_be_used_is_told_in_the_user_s_language_and_not_in_the_exception_s(string flaw)
+    {
+        var root = BuiltPlatform();
+        switch (flaw)
+        {
+            case "no folder":
+                Directory.Delete(root, recursive: true);
+                break;
+            case "no manifest":
+                File.Delete(Path.Combine(root, "rdcore.json"));
+                break;
+            case "no language server named":
+                File.WriteAllText(Path.Combine(root, "rdcore.json"), "{}");
+                break;
+            case "no language server there":
+                Directory.Delete(Path.Combine(root, "RDCore.LanguageServer"), recursive: true);
+                break;
+        }
+
+        var before = CultureInfo.CurrentUICulture;
+        CultureInfo.CurrentUICulture = new CultureInfo("fr-CA");
+        try
+        {
+            using var server = Server(root);
+            await server.ProjectLoadedAsync(ProjectFile());
+
+            var reason = flaw switch
+            {
+                "no folder" => Strings.FolderMissing,
+                "no manifest" => Strings.NoManifest,
+                "no language server named" => Strings.ManifestUnusable,
+                _ => Strings.LanguageServerMissing,
+            };
+            Assert.AreEqual(Strings.PlatformRootUnusable(root, reason), prompts.Told.Single());
+            StringAssert.StartsWith(prompts.Told[0], "La plateforme RDCore");
+            host.DidNotReceiveWithAnyArgs().RegisterLanguageServer(default!);
+        }
+        finally
+        {
+            CultureInfo.CurrentUICulture = before;
+        }
     }
 
     [TestMethod]
