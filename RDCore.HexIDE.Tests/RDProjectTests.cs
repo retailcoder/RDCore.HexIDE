@@ -152,6 +152,16 @@ public sealed class RDProjectTests : IDisposable
     }
 
     [TestMethod]
+    public void Two_paths_that_differ_only_in_case_are_one_member_on_Windows_and_two_elsewhere()
+    {
+        WriteProject("""["src/Main.bas", "SRC/MAIN.BAS"]""", otherFiles: "[]");
+
+        var project = RDProject.Read(ProjectFile);
+
+        Assert.AreEqual(OperatingSystem.IsWindows() ? 1 : 2, project.Members.Count);
+    }
+
+    [TestMethod]
     public void A_path_with_a_NUL_in_it_is_left_out()
     {
         WriteProject("""["src/Ma\u0000in.bas", "src/Main.bas"]""", otherFiles: "[]");

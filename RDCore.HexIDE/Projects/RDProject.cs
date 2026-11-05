@@ -30,6 +30,11 @@ internal sealed record RDProject(string Name, IReadOnlyList<RDProjectMember> Mem
     };
 
     /// <summary>How the file system tells two paths apart: whatever their case on Windows, by their case elsewhere.</summary>
+    /// <remarks>
+    /// It goes by the operating system, not by the disk. Windows folders can be made case-sensitive and macOS disks are
+    /// case-insensitive by default, and there <c>a.bas</c> and <c>A.bas</c> name one file the add-in counts as two members:
+    /// HexIDE then lists the file twice, which is wrong but harmless.
+    /// </remarks>
     internal static StringComparer PathComparer => OperatingSystem.IsWindows() ? StringComparer.OrdinalIgnoreCase : StringComparer.Ordinal;
 
     /// <summary>Reads the project file at <paramref name="path"/>.</summary>
