@@ -1,10 +1,9 @@
 name: Build and Test
 
 on:
+ # every branch is built as it is pushed, so work is checked before it reaches main, which moves only after review.
  push:
-  branches: [main]
  pull_request:
-  branches: [main]
 
 permissions:
  contents: read
