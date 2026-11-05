@@ -14,6 +14,7 @@
     <File Path=".github/workflows/cla.yml" />
     <File Path="tools/dependencies.json" />
     <File Path="tools/Get-Dependencies.ps1" />
+    <File Path="tools/Pack-Addin.ps1" />
   </Folder>
   <Project Path="RDCore.PlatformInstaller/RDCore.PlatformInstaller.csproj" />
   <Project Path="RDCore.PlatformInstaller.Tests/RDCore.PlatformInstaller.Tests.csproj" />

@@ -36,6 +36,8 @@ dotnet test RDCore.HexIDE.slnx
 
 `Get-Dependencies.ps1` récupère dans `deps/` les sources contre lesquelles l'add-in est bâti, aux versions que fixe `tools/dependencies.json` : le contrat d'add-in de HexIDE (`HexIDE.Core`), et `RDCore.SDK.Protocol` en attendant sa publication en paquet.
 
+`pwsh tools/Pack-Addin.ps1` dispose l'add-in en paquet d'add-in HexIDE dans `artifacts/addins/rdcore/` : copiez ce dossier dans le dossier `addins` à côté de l'exécutable de HexIDE. Le paquet n'est pas encore signé : HexIDE ne le charge donc qu'en mode développeur, avec les add-ins non signés permis.
+
 ---
 ### Voir aussi
 - [RDCore](https://github.com/rubberduck-vba/RDCore)
