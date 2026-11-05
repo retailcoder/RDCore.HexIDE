@@ -38,6 +38,20 @@ dotnet test RDCore.HexIDE.slnx
 
 `pwsh tools/Pack-Addin.ps1` dispose l'add-in en paquet d'add-in HexIDE dans `artifacts/addins/rdcore/` : copiez ce dossier dans le dossier `addins` à côté de l'exécutable de HexIDE. Le paquet n'est pas encore signé : HexIDE ne le charge donc qu'en mode développeur, avec les add-ins non signés permis.
 
+### Réglages de développement
+
+Deux réglages servent au travail sur RDCore et sur l'add-in. L'add-in les lit dans `%LOCALAPPDATA%\RDCore\HexIDE\settings.json`, dans toutes ses versions, Release comprise : le fichier est dans le profil de l'utilisateur, et qui ne l'écrit jamais n'est touché en rien.
+
+```json
+{
+  "platformRoot": "C:\\Dev\\RDCore\\artifacts\\rdcore-dev",
+  "developmentFeed": "C:\\Dev\\RDCore.HexIDE\\artifacts\\feed"
+}
+```
+
+- `platformRoot` exécute la plateforme de ce dossier, comme le `artifacts/rdcore-dev` d'un build, au lieu d'une plateforme installée. Rien n'est téléchargé tant qu'il est réglé, et il l'emporte sur `developmentFeed`.
+- `developmentFeed` télécharge les publications d'un dossier plutôt que de GitHub, pour essayer la question, le téléchargement et l'installation avant qu'une publication n'existe. `pwsh tools/New-DevelopmentFeed.ps1 -Platform <une plateforme bâtie> -Version 0.1.0-dev.1 -Destination <dossier>` en écrit un. Le téléchargement est vérifié comme celui d'une publication : les hôtes, https, et sa somme de contrôle.
+
 ---
 ### Voir aussi
 - [RDCore](https://github.com/rubberduck-vba/RDCore)
