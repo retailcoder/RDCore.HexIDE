@@ -66,6 +66,8 @@ internal static class Strings
     /// <summary>{0}: why.</summary>
     public static string ServerNotRegistered(string reason) => Format(nameof(ServerNotRegistered), reason);
 
+    public static string ProjectTypeTitle => Get(nameof(ProjectTypeTitle));
+
     /// <summary>{0}: the project file.</summary>
     public static string ProjectFileGone(string path) => Format(nameof(ProjectFileGone), path);
 

@@ -327,8 +327,8 @@ internal sealed class RDCoreProjectType(IUserPrompts prompts, TimeProvider? time
         failed => Trace.TraceError($"RDCore for HexIDE couldn't tell the user \"{message}\": {failed.Exception}"),
         CancellationToken.None, TaskContinuationOptions.OnlyOnFaulted, TaskScheduler.Default);
 
-    /// <summary>What the Open Project dialog calls the files.</summary>
-    public const string Title = "RDCore projects";
+    /// <summary>What the Open Project dialog calls the files, in the user's language when the add-in starts.</summary>
+    public static string Title => Strings.ProjectTypeTitle;
 
     /// <summary>The type to register with HexIDE.</summary>
     public AddinProjectType Type => new(Title)

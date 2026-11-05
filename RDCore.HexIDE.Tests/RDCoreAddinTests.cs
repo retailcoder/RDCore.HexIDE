@@ -1,3 +1,4 @@
+using System.Globalization;
 using HexIDE.Addins;
 using NSubstitute;
 using RDCore.HexIDE.Projects;
@@ -24,5 +25,22 @@ public class RDCoreAddinTests
         CollectionAssert.AreEqual(new[] { ".rdproj" }, type.FileNames.ToArray());
         addin.Dispose();
         registration.Received(1).Dispose();
+    }
+
+    [TestMethod]
+    [DataRow("en", "RDCore projects")]
+    [DataRow("fr-CA", "Projets RDCore")]
+    public void The_project_type_is_named_in_the_user_s_language(string culture, string title)
+    {
+        var was = CultureInfo.CurrentUICulture;
+        CultureInfo.CurrentUICulture = new CultureInfo(culture);
+        try
+        {
+            Assert.AreEqual(title, RDCoreProjectType.Title);
+        }
+        finally
+        {
+            CultureInfo.CurrentUICulture = was;
+        }
     }
 }
