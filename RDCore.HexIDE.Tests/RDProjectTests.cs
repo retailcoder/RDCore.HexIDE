@@ -294,6 +294,29 @@ public sealed class RDProjectTests : IDisposable
     }
 
     [TestMethod]
+    public void A_burst_of_writes_that_never_goes_quiet_is_reread_after_the_longest_wait()
+    {
+        WriteProject("""["src/Main.bas"]""", otherFiles: "[]");
+        var changes = new Changes();
+        var time = new ManualTime();
+        using var watcher = Following(changes, time);
+        Write("src/Helpers.bas", "Attribute VB_Name = \"Helpers\"\r\n");
+        WriteProject("""["src/Main.bas", "src/Helpers.bas"]""", otherFiles: "[]");
+        var step = RDProjectWatcher.Settle / 2;
+
+        watcher.Schedule();
+        for (var waited = TimeSpan.Zero; waited + step < RDProjectWatcher.MaxWait; waited += step)
+        {
+            time.Advance(step);
+            Assert.AreEqual(0, changes.Calls.Count, $"still writing at {waited + step}");
+            watcher.Schedule();
+        }
+        time.Advance(step);
+
+        CollectionAssert.AreEqual(new[] { $"added {Full("src/Helpers.bas")} StandardModule" }, changes.Calls);
+    }
+
+    [TestMethod]
     public void A_file_caught_mid_write_is_read_again_and_nothing_is_reported_for_it()
     {
         WriteProject("""["src/Main.bas"]""", otherFiles: "[]");

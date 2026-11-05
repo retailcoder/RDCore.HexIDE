@@ -13,16 +13,21 @@ internal sealed class RDProjectWatcher : IDisposable
     /// <summary>A write is reread once the file has been quiet this long, so a burst of writes is one report.</summary>
     public static readonly TimeSpan Settle = TimeSpan.FromMilliseconds(250);
 
+    /// <summary>A burst of writes that never goes quiet is reread at the latest this long after its first write.</summary>
+    public static readonly TimeSpan MaxWait = TimeSpan.FromSeconds(2);
+
     // A file caught mid-write can't be read whole; it is read again, a few times, before the add-in gives up on that write.
     private const int Attempts = 5;
 
     private readonly object gate = new();
     private readonly string path;
     private readonly IAddinProjectChanges changes;
+    private readonly TimeProvider time;
     private readonly ITimer settle;
     private FileSystemWatcher? watcher;
     private CancellationTokenRegistration closed;
     private RDProject? last;
+    private DateTimeOffset? waitingSince;
     private int attempt;
     private bool disposed;
 
@@ -33,6 +38,7 @@ internal sealed class RDProjectWatcher : IDisposable
     {
         this.path = Path.GetFullPath(path);
         this.changes = changes;
+        this.time = time;
         settle = time.CreateTimer(_ => Reread(), null, Timeout.InfiniteTimeSpan, Timeout.InfiniteTimeSpan);
     }
 
@@ -75,15 +81,23 @@ internal sealed class RDProjectWatcher : IDisposable
         }
     }
 
-    /// <summary>Rereads the file once it has been quiet for <see cref="Settle"/>: what the file system's reports of it do.</summary>
+    /// <summary>
+    /// Rereads the file once it has been quiet for <see cref="Settle"/>, or <see cref="MaxWait"/> after the first write it
+    /// waits on: what the file system's reports of it do.
+    /// </summary>
     internal void Schedule()
     {
         lock (gate)
         {
-            if (!disposed)
+            if (disposed)
             {
-                settle.Change(Settle, Timeout.InfiniteTimeSpan);
+                return;
             }
+
+            var now = time.GetUtcNow();
+            waitingSince ??= now;
+            var left = waitingSince.Value + MaxWait - now;
+            settle.Change(left < TimeSpan.Zero ? TimeSpan.Zero : left < Settle ? left : Settle, Timeout.InfiniteTimeSpan);
         }
     }
 
@@ -101,6 +115,8 @@ internal sealed class RDProjectWatcher : IDisposable
                 return;
             }
 
+            // This read covers every write before it.
+            waitingSince = null;
             if (last is null)
             {
                 // The first read is still going: what it finds is what this would have, so the reread waits for it.
