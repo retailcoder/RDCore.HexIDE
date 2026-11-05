@@ -1,0 +1,16 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- gets the RDCore platform onto the machine: the .NET base library only, and nothing of HexIDE, so that it moves into
+       RDCore's own installer as it is. -->
+  <PropertyGroup>
+    <OutputType>Library</OutputType>
+    <RootNamespace>RDCore.PlatformInstaller</RootNamespace>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <WarningsAsErrors>CS1591</WarningsAsErrors>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="RDCore.PlatformInstaller.Tests" />
+  </ItemGroup>
+
+</Project>
