@@ -429,6 +429,42 @@ public sealed class RDProjectTests : IDisposable
     }
 
     [TestMethod]
+    [Timeout(30_000, CooperativeCancellation = true)] // bounds the deadlock this guards against; nothing waits on it otherwise
+    public void A_project_closed_on_another_thread_while_HexIDE_takes_a_change_closes_rather_than_deadlocks()
+    {
+        WriteProject("""["src/Main.bas"]""", otherFiles: "[]");
+        var changes = new Changes();
+        var time = new ManualTime();
+        using var watcher = Following(changes, time);
+        var closedInTime = false;
+        // HexIDE takes the change on its UI thread, which is closing the project: the report waits for the close.
+        changes.OnAdd = _ => closedInTime = Task.Run(watcher.Dispose).Wait(Timeout.Infinite, TestContext.CancellationToken);
+        Write("src/Helpers.bas", "Attribute VB_Name = \"Helpers\"\r\n");
+        WriteProject("""["src/Main.bas", "src/Helpers.bas"]""", otherFiles: "[]");
+
+        watcher.Reread();
+
+        Assert.IsTrue(closedInTime);
+    }
+
+    [TestMethod]
+    public void A_reread_that_ends_after_HexIDE_closed_the_project_reports_nothing_more_into_it()
+    {
+        WriteProject("""["src/Main.bas"]""", otherFiles: "[]");
+        var changes = new Changes();
+        var time = new ManualTime();
+        using var watcher = Following(changes, time);
+        changes.OnAdd = _ => watcher.Dispose();
+        Write("src/Helpers.bas", "Attribute VB_Name = \"Helpers\"\r\n");
+        Write("src/Tools.bas", "Attribute VB_Name = \"Tools\"\r\n");
+        WriteProject("""["src/Main.bas", "src/Helpers.bas", "src/Tools.bas"]""", otherFiles: "[]");
+
+        watcher.Reread();
+
+        CollectionAssert.AreEqual(new[] { $"added {Full("src/Helpers.bas")} StandardModule" }, changes.Calls);
+    }
+
+    [TestMethod]
     public void A_file_caught_mid_write_is_read_again_and_nothing_is_reported_for_it()
     {
         WriteProject("""["src/Main.bas"]""", otherFiles: "[]");
@@ -472,6 +508,9 @@ public sealed class RDProjectTests : IDisposable
         /// <summary>Whether a member added throws, as a HexIDE that fails to take it would.</summary>
         public bool ThrowOnAdd { get; set; }
 
+        /// <summary>What HexIDE does on taking a member, once it is recorded.</summary>
+        public Action<AddinProjectMember>? OnAdd { get; set; }
+
         public void MemberAdded(AddinProjectMember member)
         {
             if (ThrowOnAdd)
@@ -480,6 +519,7 @@ public sealed class RDProjectTests : IDisposable
             }
 
             Record($"added {member.Path} {member.Kind}");
+            OnAdd?.Invoke(member);
         }
 
         public void MemberRemoved(string path) => Record($"removed {path}");

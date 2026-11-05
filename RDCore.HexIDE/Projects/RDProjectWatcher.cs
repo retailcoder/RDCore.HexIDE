@@ -22,8 +22,12 @@ internal sealed class RDProjectWatcher : IDisposable
     private const int Attempts = 5;
 
     private readonly object gate = new();
+    // Rereads report one at a time, in order, outside the gate: HexIDE may take a report on the thread that closes the
+    // project, and a close waits for the gate.
+    private readonly object reporting = new();
     private readonly string path;
     private readonly IAddinProjectChanges changes;
+    private readonly IAddinProjectChanges whileOpen;
     private readonly TimeProvider time;
     private readonly Action<string> tell;
     private readonly ITimer settle;
@@ -44,6 +48,7 @@ internal sealed class RDProjectWatcher : IDisposable
     {
         this.path = Path.GetFullPath(path);
         this.changes = changes;
+        whileOpen = new WhileOpen(this, changes);
         this.time = time;
         this.tell = tell;
         settle = time.CreateTimer(_ => Reread(), null, Timeout.InfiniteTimeSpan, Timeout.InfiniteTimeSpan);
@@ -166,28 +171,45 @@ internal sealed class RDProjectWatcher : IDisposable
     /// </remarks>
     internal void Reread()
     {
-        string? message;
-        lock (gate)
+        lock (reporting)
         {
-            message = RereadLocked();
-        }
-
-        if (message is not null)
-        {
-            try
+            string? message;
+            (RDProject Before, RDProject After)? change;
+            lock (gate)
             {
-                tell(message);
+                message = RereadLocked(out change);
             }
-            catch (Exception ex)
+
+            if (change is var (before, after))
             {
-                Trace.TraceError($"RDCore for HexIDE couldn't tell the user \"{message}\": {ex}");
+                try
+                {
+                    RDProjectChanges.Report(before, after, whileOpen);
+                }
+                catch (Exception ex)
+                {
+                    Trace.TraceError($"RDCore for HexIDE couldn't report a change to {path}: {ex}");
+                }
+            }
+
+            if (message is not null)
+            {
+                try
+                {
+                    tell(message);
+                }
+                catch (Exception ex)
+                {
+                    Trace.TraceError($"RDCore for HexIDE couldn't tell the user \"{message}\": {ex}");
+                }
             }
         }
     }
 
-    // What to tell the user, if anything.
-    private string? RereadLocked()
+    // What to tell the user, if anything, and the change to report.
+    private string? RereadLocked(out (RDProject Before, RDProject After)? change)
     {
+        change = null;
         if (disposed)
         {
             return null;
@@ -229,16 +251,65 @@ internal sealed class RDProjectWatcher : IDisposable
             }
             attempt = 0;
             told = false;
-            // What HexIDE was told stands even when it throws partway, so the next change isn't reported twice.
-            var before = last;
+            // What HexIDE is told stands even when it throws partway, so the next change isn't reported twice.
+            change = (last, now);
             last = now;
-            RDProjectChanges.Report(before, now, changes);
         }
         catch (Exception ex)
         {
-            Trace.TraceError($"RDCore for HexIDE couldn't report a change to {path}: {ex}");
+            Trace.TraceError($"RDCore for HexIDE couldn't read {path} after it changed: {ex}");
         }
         return null;
+    }
+
+    private bool IsOpen
+    {
+        get
+        {
+            lock (gate)
+            {
+                return !disposed;
+            }
+        }
+    }
+
+    // HexIDE's change channel while the project is followed: a reread that ends after HexIDE closed the project reports
+    // nothing more into it.
+    private sealed class WhileOpen(RDProjectWatcher watcher, IAddinProjectChanges changes) : IAddinProjectChanges
+    {
+        public CancellationToken Closed => changes.Closed;
+
+        public void MemberAdded(AddinProjectMember member)
+        {
+            if (watcher.IsOpen)
+            {
+                changes.MemberAdded(member);
+            }
+        }
+
+        public void MemberRemoved(string path)
+        {
+            if (watcher.IsOpen)
+            {
+                changes.MemberRemoved(path);
+            }
+        }
+
+        public void MemberMoved(string oldPath, string newPath)
+        {
+            if (watcher.IsOpen)
+            {
+                changes.MemberMoved(oldPath, newPath);
+            }
+        }
+
+        public void ReferencesChanged(IReadOnlyList<AddinProjectReference> references)
+        {
+            if (watcher.IsOpen)
+            {
+                changes.ReferencesChanged(references);
+            }
+        }
     }
 
     public void Dispose()
