@@ -30,8 +30,10 @@ public sealed class RDProjectTests : IDisposable
         {
             Directory.Delete(container, recursive: true);
         }
-        catch (DirectoryNotFoundException)
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
+            // Gone already, or held by something the test let go of late: what is left is named, and the test's own result stands.
+            TestContext.WriteLine($"Left {container}: {ex.Message}");
         }
     }
 
