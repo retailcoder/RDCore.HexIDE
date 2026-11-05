@@ -48,16 +48,20 @@ public sealed record PlatformVersion : IComparable<PlatformVersion>
             value = value[..plus];
         }
 
+        // Folders are named by the version, and Windows doesn't tell RC from rc: a version is case-insensitive, and written in
+        // lowercase.
+        value = value.ToLowerInvariant();
         var dash = value.IndexOf('-');
         var core = dash >= 0 ? value[..dash] : value;
         var prerelease = dash >= 0 ? value[(dash + 1)..].Split('.') : [];
-        if (prerelease.Any(identifier => identifier.Length == 0 || !identifier.All(c => char.IsAsciiLetterOrDigit(c) || c == '-')))
+        if (prerelease.Any(identifier => identifier.Length == 0 || !identifier.All(c => char.IsAsciiLetterOrDigit(c) || c == '-')
+            || HasLeadingZero(identifier)))
         {
             return false;
         }
 
         var numbers = core.Split('.');
-        if (numbers.Length != 3 || !numbers.All(n => n.Length > 0 && n.All(char.IsAsciiDigit)))
+        if (numbers.Length != 3 || !numbers.All(n => n.Length > 0 && n.All(char.IsAsciiDigit) && !HasLeadingZero(n)))
         {
             return false;
         }
@@ -70,6 +74,10 @@ public sealed record PlatformVersion : IComparable<PlatformVersion>
         version = new PlatformVersion(parsed, prerelease, value);
         return true;
     }
+
+    // Semantic Versioning forbids it in a number, so 01.0.0 and 1.0.0 can't be two versions, or one with two folders.
+    private static bool HasLeadingZero(string identifier) =>
+        identifier.Length > 1 && identifier[0] == '0' && identifier.All(char.IsAsciiDigit);
 
     /// <summary>Reads a version.</summary>
     /// <exception cref="FormatException">It is not one.</exception>

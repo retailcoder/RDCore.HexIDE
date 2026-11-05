@@ -36,8 +36,22 @@ public class PlatformVersionTests
     [DataRow("0.1.0-")]
     [DataRow("0.1.0-alpha..1")]
     [DataRow("latest")]
+    [DataRow("01.0.0")]
+    [DataRow("0.01.0")]
+    [DataRow("0.1.0-alpha.01")]
     public void What_is_not_a_version_is_refused(string text)
     {
         Assert.IsFalse(PlatformVersion.TryParse(text, out _));
+    }
+
+    [TestMethod]
+    public void Versions_differing_only_by_case_are_one_version_written_in_lowercase()
+    {
+        // A version names its folder, and Windows doesn't tell RC from rc.
+        var shouted = PlatformVersion.Parse("0.1.0-RC.1");
+
+        Assert.AreEqual(PlatformVersion.Parse("0.1.0-rc.1"), shouted);
+        Assert.AreEqual("0.1.0-rc.1", shouted.Text);
+        Assert.AreEqual(0, shouted.CompareTo(PlatformVersion.Parse("0.1.0-rc.1")));
     }
 }
