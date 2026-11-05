@@ -24,7 +24,10 @@ public sealed record PlatformVersion : IComparable<PlatformVersion>
     /// <summary>Whether this is a prerelease.</summary>
     public bool IsPrerelease => Prerelease.Count > 0;
 
-    /// <summary>The version as it was written, without build metadata.</summary>
+    /// <summary>
+    /// The version in lowercase, without a leading <c>v</c> or build metadata: <c>V0.1.0-RC.1+build.5</c> is <c>0.1.0-rc.1</c>.
+    /// Its folder is named by it.
+    /// </summary>
     public string Text { get; }
 
     /// <summary>Reads a version, with or without a leading <c>v</c>; false when it is not one.</summary>

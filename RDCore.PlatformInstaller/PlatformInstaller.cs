@@ -77,6 +77,10 @@ public sealed class PlatformInstaller
     /// can't be renamed out of the way, and a removal leaves it whole. The lease is per process, and the system frees it with the
     /// process.
     /// </summary>
+    /// <remarks>
+    /// <b>Windows only.</b> The guard is Windows' refusal to rename a folder that holds an open file. Elsewhere an open file
+    /// doesn't stop its folder being renamed or removed, so the lease keeps nothing deployed there.
+    /// </remarks>
     /// <exception cref="FileNotFoundException">The platform isn't deployed any more.</exception>
     public static IDisposable Hold(InstalledPlatform platform) =>
         new FileStream(platform.Manifest, FileMode.Open, FileAccess.Read, FileShare.Read);
