@@ -82,6 +82,27 @@ public class ReleaseFeedTests
         Assert.AreEqual(InstallFailure.UnreadableReleases, refusal.Failure);
     }
 
+    [TestMethod]
+    [DataRow(false)]
+    [DataRow(true)]
+    public async Task An_answer_bigger_than_a_list_of_releases_should_be_is_refused_as_unreadable_whether_or_not_it_says_its_size(bool unsized)
+    {
+        var github = new FakeGitHub { Unsized = unsized }.Release("v0.1.0");
+        var feed = new ReleaseFeed(new HttpClient(github), new PlatformInstallerOptions { Root = Path.GetTempPath(), MaxReleasesBytes = 64 });
+
+        var refusal = await Assert.ThrowsExactlyAsync<PlatformInstallException>(() => feed.FindLatestAsync(TestContext.CancellationToken));
+
+        Assert.AreEqual(InstallFailure.UnreadableReleases, refusal.Failure);
+    }
+
+    [TestMethod]
+    public async Task An_answer_that_doesn_t_say_its_size_is_read_whole()
+    {
+        var latest = await Feed(new FakeGitHub { Unsized = true }.Release("v0.1.0").Release("v0.1.1")).FindLatestAsync(TestContext.CancellationToken);
+
+        Assert.AreEqual("0.1.1", latest?.Version.Text);
+    }
+
     private sealed class Answering(string json) : HttpMessageHandler
     {
         protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken) =>

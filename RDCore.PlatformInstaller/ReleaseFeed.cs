@@ -40,12 +40,16 @@ public sealed class ReleaseFeed(HttpClient http, PlatformInstallerOptions option
             new Uri(options.ApiBase, $"repos/{options.Repository}/releases?per_page=100"));
         request.Headers.UserAgent.Add(new ProductInfoHeaderValue("RDCore.PlatformInstaller", "1"));
         request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/vnd.github+json"));
-        using var response = await http.SendAsync(request, cancellationToken).ConfigureAwait(false);
+        using var response = await http.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cancellationToken)
+            .ConfigureAwait(false);
         response.EnsureSuccessStatusCode();
-        await using var body = await response.Content.ReadAsStreamAsync(cancellationToken).ConfigureAwait(false);
+        var body = await BoundedContent.ReadAsync(response, options.MaxReleasesBytes,
+            size => new PlatformInstallException(InstallFailure.UnreadableReleases,
+                $"What GitHub answered for {options.Repository}'s releases is bigger than a list of them should be: {size} bytes at least, where {options.MaxReleasesBytes} is the most."),
+            cancellationToken).ConfigureAwait(false);
         try
         {
-            using var releases = await JsonDocument.ParseAsync(body, cancellationToken: cancellationToken).ConfigureAwait(false);
+            using var releases = JsonDocument.Parse(body);
             List<(PlatformRelease, bool)> published = [];
             foreach (var release in releases.RootElement.EnumerateArray())
             {

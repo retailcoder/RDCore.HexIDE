@@ -1,5 +1,6 @@
 using System.IO.Compression;
 using System.Security.Cryptography;
+using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 
@@ -113,7 +114,17 @@ public sealed class PlatformInstaller
     private async Task DeployAsync(PlatformRelease release, string root, IProgress<InstallProgress>? progress,
         CancellationToken cancellationToken)
     {
-        var sums = await http.GetStringAsync(release.Checksums, cancellationToken).ConfigureAwait(false);
+        string sums;
+        using (var response = await http.GetAsync(release.Checksums, HttpCompletionOption.ResponseHeadersRead, cancellationToken)
+            .ConfigureAwait(false))
+        {
+            response.EnsureSuccessStatusCode();
+            sums = Encoding.UTF8.GetString(await BoundedContent.ReadAsync(response, options.MaxChecksumsBytes,
+                size => new PlatformInstallException(InstallFailure.TooLarge,
+                    $"The release's {ReleaseFeed.ChecksumsAsset} is bigger than it should be: {size} bytes at least, where {options.MaxChecksumsBytes} is the most."),
+                cancellationToken).ConfigureAwait(false));
+        }
+
         var expected = Sha256Sums.Find(sums, release.ArchiveName)
             ?? throw new PlatformInstallException(InstallFailure.ChecksumMismatch,
                 $"The release's {ReleaseFeed.ChecksumsAsset} doesn't list {release.ArchiveName}.");

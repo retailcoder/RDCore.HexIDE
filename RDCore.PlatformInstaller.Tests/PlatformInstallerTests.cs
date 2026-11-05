@@ -150,6 +150,26 @@ public sealed class PlatformInstallerTests : IDisposable
     }
 
     [TestMethod]
+    [DataRow(false)]
+    [DataRow(true)]
+    public async Task A_SHA256SUMS_bigger_than_one_should_be_is_refused_before_the_platform_is_downloaded(bool unsized)
+    {
+        var github = new FakeGitHub { Unsized = unsized }.Release("v0.1.0");
+
+        await Refused(Installer(github, adjust: options => options with { MaxChecksumsBytes = 16 }), InstallFailure.TooLarge);
+
+        Assert.IsFalse(github.Requests.Any(request => request.AbsolutePath.EndsWith(".zip")));
+    }
+
+    [TestMethod]
+    public async Task A_release_whose_files_don_t_say_their_size_installs()
+    {
+        var installed = await InstallLatest(Installer(new FakeGitHub { Unsized = true }.Release("v0.1.0")));
+
+        Assert.AreEqual("0.1.0", installed.Version.Text);
+    }
+
+    [TestMethod]
     public async Task An_archive_with_too_many_entries_or_too_much_to_unpack_is_refused_before_it_is_unpacked()
     {
         await Refused(Installer(new FakeGitHub().Release("v0.1.0"), adjust: options => options with { MaxEntries = 2 }),
