@@ -29,6 +29,9 @@ internal sealed record RDProject(string Name, IReadOnlyList<RDProjectMember> Mem
         Folders = Folders,
     };
 
+    /// <summary>How the file system tells two paths apart: whatever their case on Windows, by their case elsewhere.</summary>
+    internal static StringComparer PathComparer => OperatingSystem.IsWindows() ? StringComparer.OrdinalIgnoreCase : StringComparer.Ordinal;
+
     /// <summary>Reads the project file at <paramref name="path"/>.</summary>
     /// <exception cref="InvalidDataException">It isn't a project file.</exception>
     /// <exception cref="IOException">It can't be read.</exception>
@@ -49,10 +52,12 @@ internal sealed record RDProject(string Name, IReadOnlyList<RDProjectMember> Mem
 
         var project = file.ProjectInfo;
         var name = string.IsNullOrWhiteSpace(project.Name) ? System.IO.Path.GetFileName(root) : project.Name;
+        // A file the project lists twice, under any spelling of its path, is one member: the first the file lists.
+        var listed = new HashSet<string>(PathComparer);
         List<RDProjectMember> members = [];
         foreach (var module in project.Modules)
         {
-            if (Within(root, module.RelativeUri) is { } full)
+            if (Within(root, module.RelativeUri) is { } full && listed.Add(full))
             {
                 var (source, digest) = ReadMember(full);
                 members.Add(new RDProjectMember(full, KindOf(module.Super, source), digest));
@@ -60,7 +65,7 @@ internal sealed record RDProject(string Name, IReadOnlyList<RDProjectMember> Mem
         }
         foreach (var other in project.OtherFiles)
         {
-            if (Within(root, other.RelativeUri) is { } full)
+            if (Within(root, other.RelativeUri) is { } full && listed.Add(full))
             {
                 members.Add(new RDProjectMember(full, AddinMemberKind.Other, ReadMember(full).Digest));
             }
@@ -78,7 +83,8 @@ internal sealed record RDProject(string Name, IReadOnlyList<RDProjectMember> Mem
     /// </summary>
     internal static string? Within(string root, string relative)
     {
-        if (string.IsNullOrWhiteSpace(relative) || System.IO.Path.IsPathRooted(relative))
+        // A NUL is no path at all: Path.GetFullPath refuses it.
+        if (string.IsNullOrWhiteSpace(relative) || relative.Contains('\0') || System.IO.Path.IsPathRooted(relative))
         {
             return null;
         }

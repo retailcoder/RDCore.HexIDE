@@ -113,6 +113,60 @@ public sealed class RDProjectTests : IDisposable
     }
 
     [TestMethod]
+    public void A_project_the_file_gives_as_null_is_an_empty_one_named_for_its_folder()
+    {
+        File.WriteAllText(ProjectFile, """{ "Version": "0.1", "ProjectInfo": null }""");
+
+        var project = RDProject.Read(ProjectFile);
+
+        Assert.AreEqual(Path.GetFileName(root), project.Name);
+        Assert.AreEqual(0, project.Members.Count);
+    }
+
+    [TestMethod]
+    public void A_file_listed_twice_under_any_spelling_of_its_path_is_one_member()
+    {
+        var spellings = OperatingSystem.IsWindows()
+            ? """["src/Main.bas", "src\\Main.bas", "./src/Main.bas", "SRC/MAIN.BAS"]"""
+            : """["src/Main.bas", "src\\Main.bas", "./src/Main.bas"]""";
+        WriteProject(spellings, otherFiles: """["README.md", "src/Main.bas"]""");
+
+        var project = RDProject.Read(ProjectFile);
+
+        CollectionAssert.AreEqual(
+            new[] { (Full("src/Main.bas"), AddinMemberKind.StandardModule), (Full("README.md"), AddinMemberKind.Other) },
+            project.Members.Select(member => (member.Path, member.Kind)).ToArray());
+    }
+
+    [TestMethod]
+    public void A_path_with_a_NUL_in_it_is_left_out()
+    {
+        WriteProject("""["src/Ma\u0000in.bas", "src/Main.bas"]""", otherFiles: "[]");
+
+        var project = RDProject.Read(ProjectFile);
+
+        CollectionAssert.AreEqual(new[] { Full("src/Main.bas") }, project.Members.Select(member => member.Path).ToArray());
+    }
+
+    [TestMethod]
+    public void A_change_HexIDE_throws_on_is_not_reported_twice_and_lets_nothing_escape_the_timer_s_thread()
+    {
+        WriteProject("""["src/Main.bas"]""", otherFiles: "[]");
+        var changes = new Changes { ThrowOnAdd = true };
+        using var watcher = new RDProjectWatcher(ProjectFile, RDProject.Read(ProjectFile), changes);
+        Write("src/Helpers.bas", "Attribute VB_Name = \"Helpers\"\r\n");
+        WriteProject("""["src/Main.bas", "src/Helpers.bas"]""", otherFiles: "[]");
+
+        watcher.Reread();
+
+        changes.ThrowOnAdd = false;
+        Write("src/Tools.bas", "Attribute VB_Name = \"Tools\"\r\n");
+        WriteProject("""["src/Main.bas", "src/Helpers.bas", "src/Tools.bas"]""", otherFiles: "[]");
+        watcher.Reread();
+        CollectionAssert.AreEqual(new[] { $"added {Full("src/Tools.bas")} StandardModule" }, changes.Calls);
+    }
+
+    [TestMethod]
     public void A_file_that_isn_t_a_project_file_is_refused()
     {
         File.WriteAllText(ProjectFile, "Type=Exe\r\nModule=Main; Main.bas\r\n");
@@ -224,7 +278,18 @@ public sealed class RDProjectTests : IDisposable
 
         public void Close() => closed.Cancel();
 
-        public void MemberAdded(AddinProjectMember member) => Record($"added {member.Path} {member.Kind}");
+        /// <summary>Whether a member added throws, as a HexIDE that fails to take it would.</summary>
+        public bool ThrowOnAdd { get; set; }
+
+        public void MemberAdded(AddinProjectMember member)
+        {
+            if (ThrowOnAdd)
+            {
+                throw new InvalidOperationException("HexIDE couldn't take the member.");
+            }
+
+            Record($"added {member.Path} {member.Kind}");
+        }
 
         public void MemberRemoved(string path) => Record($"removed {path}");
 

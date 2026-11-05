@@ -58,6 +58,10 @@ internal sealed class RDProjectWatcher : IDisposable
     }
 
     /// <summary>Reads the project file again and reports how it differs from the last read.</summary>
+    /// <remarks>
+    /// Nothing escapes it: it runs on a timer's thread, where an exception would end HexIDE. A change it fails to report is
+    /// traced, and the watcher goes on from what it read.
+    /// </remarks>
     internal void Reread()
     {
         lock (gate)
@@ -67,27 +71,36 @@ internal sealed class RDProjectWatcher : IDisposable
                 return;
             }
 
-            RDProject now;
             try
             {
-                now = RDProject.Read(path);
+                RDProject now;
+                try
+                {
+                    now = RDProject.Read(path);
+                }
+                catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidDataException)
+                {
+                    if (++attempt < Attempts)
+                    {
+                        settle.Change(Settle, Timeout.InfiniteTimeSpan);
+                    }
+                    else
+                    {
+                        attempt = 0;
+                        Trace.TraceWarning($"RDCore for HexIDE couldn't read {path} after it changed: {ex.Message}");
+                    }
+                    return;
+                }
+                attempt = 0;
+                // What HexIDE was told stands even when it throws partway, so the next change isn't reported twice.
+                var before = last;
+                last = now;
+                RDProjectChanges.Report(before, now, changes);
             }
-            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidDataException)
+            catch (Exception ex)
             {
-                if (++attempt < Attempts)
-                {
-                    settle.Change(Settle, Timeout.InfiniteTimeSpan);
-                }
-                else
-                {
-                    attempt = 0;
-                    Trace.TraceWarning($"RDCore for HexIDE couldn't read {path} after it changed: {ex.Message}");
-                }
-                return;
+                Trace.TraceError($"RDCore for HexIDE couldn't report a change to {path}: {ex}");
             }
-            attempt = 0;
-            RDProjectChanges.Report(last, now, changes);
-            last = now;
         }
     }
 
@@ -122,9 +135,8 @@ internal static class RDProjectChanges
     /// </remarks>
     public static void Report(RDProject before, RDProject after, IAddinProjectChanges changes)
     {
-        var comparer = OperatingSystem.IsWindows() ? StringComparer.OrdinalIgnoreCase : StringComparer.Ordinal;
-        var was = before.Members.ToDictionary(member => member.Path, comparer);
-        var now = after.Members.ToDictionary(member => member.Path, comparer);
+        var was = before.Members.ToDictionary(member => member.Path, RDProject.PathComparer);
+        var now = after.Members.ToDictionary(member => member.Path, RDProject.PathComparer);
         var removed = before.Members.Where(member => !now.TryGetValue(member.Path, out var same) || same.Kind != member.Kind).ToList();
         var added = after.Members.Where(member => !was.TryGetValue(member.Path, out var same) || same.Kind != member.Kind).ToList();
 
