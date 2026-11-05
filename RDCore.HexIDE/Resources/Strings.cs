@@ -101,4 +101,6 @@ internal static class Strings
 
     /// <summary>{0}: a size in megabytes.</summary>
     public static string Megabytes(double megabytes) => Format(nameof(Megabytes), megabytes);
+
+    public static string NoPlatformToRun => Get(nameof(NoPlatformToRun));
 }

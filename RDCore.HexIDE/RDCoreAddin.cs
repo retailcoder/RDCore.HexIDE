@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using HexIDE.Addins;
+using RDCore.HexIDE.Debugging;
 using RDCore.HexIDE.Platform;
 using RDCore.HexIDE.Projects;
 using RDCore.HexIDE.Server;
@@ -8,8 +9,8 @@ using RDCore.PlatformInstaller;
 namespace RDCore.HexIDE;
 
 /// <summary>
-/// RDCore for HexIDE: RDCore's language server while an RDCore project is open, with the platform it runs from installed on
-/// the user's say-so.
+/// RDCore for HexIDE: RDCore's language server while an RDCore project is open, and its debugger as a way to run one, with the
+/// platform they run from installed on the user's say-so.
 /// </summary>
 public sealed class RDCoreAddin : IAddin
 {
@@ -18,6 +19,8 @@ public sealed class RDCoreAddin : IAddin
     private RDCoreServer? server;
     private RDCoreProjectType? projectType;
     private IDisposable? projectTypeRegistration;
+    private RDCoreDebugLaunch? debugLaunch;
+    private IDisposable? debugLaunchRegistration;
 
     /// <inheritdoc/>
     public void Initialize(IHexIdeHost host)
@@ -32,7 +35,11 @@ public sealed class RDCoreAddin : IAddin
         http = settings.DevelopmentFeed is { Length: > 0 } feed ? new HttpClient(new DevelopmentFeed(feed)) : new HttpClient();
         var installer = new PlatformInstaller.PlatformInstaller(
             new PlatformInstallerOptions { Root = PlatformInstallerOptions.DefaultRoot, Channel = settings.EffectiveChannel }, http);
-        server = new RDCoreServer(host, new PlatformSource(settings, installer, prompts), prompts);
+        // One source, so the server and a run share the one question and its answer.
+        var platform = new PlatformSource(settings, installer, prompts);
+        server = new RDCoreServer(host, platform, prompts);
+        debugLaunch = new RDCoreDebugLaunch(platform);
+        debugLaunchRegistration = host.RegisterDebugLaunch(debugLaunch.Launch);
 
         host.Events.ProjectLoaded += OnProjectLoaded;
         host.Events.ProjectUnloaded += OnProjectUnloaded;
@@ -61,6 +68,8 @@ public sealed class RDCoreAddin : IAddin
             host.Events.ProjectUnloaded -= OnProjectUnloaded;
         }
         server?.Dispose();
+        debugLaunchRegistration?.Dispose();
+        debugLaunch?.Dispose();
         projectTypeRegistration?.Dispose();
         projectType?.Dispose();
         http?.Dispose();

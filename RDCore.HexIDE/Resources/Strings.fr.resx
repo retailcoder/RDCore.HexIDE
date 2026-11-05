@@ -125,4 +125,7 @@ Télécharger RDCore {0} maintenant? Le téléchargement fait environ {1}, provi
   <data name="LanguageServerMissing" xml:space="preserve">
     <value>le serveur de langage que nomme son rdcore.json n'y est pas.</value>
   </data>
+  <data name="NoPlatformToRun" xml:space="preserve">
+    <value>La plateforme de RDCore n'est pas sur ce poste : le projet ne peut donc pas s'exécuter.</value>
+  </data>
 </root>
