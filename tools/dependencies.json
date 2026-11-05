@@ -8,8 +8,8 @@
   },
   "RDCore": {
     "repository": "https://github.com/retailcoder/RDCore.git",
-    "commit": "d5407ce7f9efeff0cfcb927e8772e81c92dfd9f5",
-    "note": "retailcoder/RDCore feature/protocol-project-reading: RDCore.SDK.Protocol reads a .rdproj and a module's kind as the platform does (ProjectFile.ReadAsync, ProjectModuleKinds). Back to rubberduck-vba/RDCore main once it merges; until it is on nuget.org.",
+    "commit": "123386eedb44eca8d86210e947e3178567a1c69d",
+    "note": "retailcoder/RDCore merge/nov05 (rubberduck-vba/RDCore#590's batch): RDCore.SDK.Protocol reads a .rdproj as the platform does (ProjectFile.ReadAsync, ProjectModuleKinds) and prepares the debug adapter's launch (RDCoreDebugAdapterLaunch.Prepare). Back to rubberduck-vba/RDCore main once #590 merges; until it is on nuget.org.",
     "paths": [ "/Directory.Build.props", "/RDCore.SDK.Protocol/" ]
   }
 }
