@@ -7,7 +7,7 @@
 > 👋 Bonjour! Nouveau ici? _Rubberduck_ a toujours été une initiative open-source. **RDCore l'honore avec une formule Open-Core**.  
 > <small>Voir [rubberduckvba.ca](https://rubberduckvba.ca) pour plus d'informations.</small>
 
-Ce dépôt contient **RDCore pour HexIDE**, l'add-in qui amène la plateforme [RDCore](https://github.com/rubberduck-vba/RDCore) dans l'IDE [HexIDE](https://github.com/hexide-io/HexIDE), sous **⚖️GPLv3** :
+Ce dépôt contient **RDCore pour HexIDE**, l'add-in qui amène la plateforme [RDCore](https://github.com/rubberduck-vba/RDCore) dans l'IDE [HexIDE](https://github.com/hexide-io/HexIDE), sous **⚖️GPLv3 ou toute version ultérieure** :
 
 - **RDCore.HexIDE** : l'add-in. Il inscrit le serveur de langage de RDCore auprès de HexIDE tant qu'un projet RDCore (`.rdproj`) est ouvert, ouvre les projets `.rdproj`, et offre le débogueur de RDCore à F5. Il parle à la plateforme par [RDCore.SDK.Protocol](https://github.com/rubberduck-vba/RDCore.SDK), sur la connexion de serveur de langage de HexIDE elle-même.
 - **RDCore.PlatformInstaller** : installe la plateforme RDCore sur le poste. Avec votre consentement, il télécharge la plateforme depuis les publications GitHub de RDCore, la vérifie, la déploie et la tient à jour. Il ne dépend aucunement de HexIDE et fera partie de l'installateur de RDCore lui-même.
@@ -53,7 +53,7 @@ Deux réglages servent au travail sur RDCore et sur l'add-in. L'add-in les lit d
 - `developmentFeed` télécharge les publications d'un dossier plutôt que de GitHub, pour essayer la question, le téléchargement et l'installation avant qu'une publication n'existe. `pwsh tools/New-DevelopmentFeed.ps1 -Platform <une plateforme bâtie> -Version 0.1.0-dev.1 -Destination <dossier>` en écrit un. Le téléchargement est vérifié comme celui d'une publication : les hôtes, https, et sa somme de contrôle.
 
 ## Licence
-RDCore.HexIDE est licencié sous la Licence publique générale GNU, version 3 : voir [LICENSE-GPLv3.md](LICENSE-GPLv3.md). Le fichier de licence reproduit le texte officiel, en anglais. Une version française de la licence est disponible sur demande.
+RDCore.HexIDE est licencié sous la Licence publique générale GNU, version 3 ou toute version ultérieure : voir [LICENSE-GPLv3.md](LICENSE-GPLv3.md). Le fichier de licence reproduit le texte officiel, en anglais. Une version française de la licence est disponible sur demande.
 
 ---
 ### Voir aussi
