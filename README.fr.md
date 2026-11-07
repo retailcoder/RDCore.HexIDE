@@ -52,6 +52,9 @@ Deux réglages servent au travail sur RDCore et sur l'add-in. L'add-in les lit d
 - `platformRoot` exécute la plateforme de ce dossier, comme le `artifacts/rdcore-dev` d'un build, au lieu d'une plateforme installée. Rien n'est téléchargé tant qu'il est réglé, et il l'emporte sur `developmentFeed`.
 - `developmentFeed` télécharge les publications d'un dossier plutôt que de GitHub, pour essayer la question, le téléchargement et l'installation avant qu'une publication n'existe. `pwsh tools/New-DevelopmentFeed.ps1 -Platform <une plateforme bâtie> -Version 0.1.0-dev.1 -Destination <dossier>` en écrit un. Le téléchargement est vérifié comme celui d'une publication : les hôtes, https, et sa somme de contrôle.
 
+## Licence
+RDCore.HexIDE est licencié sous la Licence publique générale GNU, version 3 : voir [LICENSE-GPLv3.md](LICENSE-GPLv3.md). Le fichier de licence reproduit le texte officiel, en anglais. Une version française de la licence est disponible sur demande.
+
 ---
 ### Voir aussi
 - [RDCore](https://github.com/rubberduck-vba/RDCore)
