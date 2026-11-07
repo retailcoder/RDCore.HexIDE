@@ -5,6 +5,8 @@
   <PropertyGroup>
     <OutputType>Library</OutputType>
     <RootNamespace>RDCore.PlatformInstaller</RootNamespace>
+    <AssemblyTitle>RDCore Platform Installer</AssemblyTitle>
+    <Description>Finds, downloads, verifies and installs the RDCore platform on the machine.</Description>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
     <WarningsAsErrors>CS1591</WarningsAsErrors>
   </PropertyGroup>
