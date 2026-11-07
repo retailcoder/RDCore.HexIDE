@@ -52,7 +52,7 @@ Two settings are for working on RDCore and on the add-in. The add-in reads them 
 - `platformRoot` runs the platform at that folder, such as a build's `artifacts/rdcore-dev`, instead of an installed one. Nothing is downloaded while it is set, and it wins over `developmentFeed`.
 - `developmentFeed` downloads releases from a folder instead of GitHub, to try the question, the download and the installation before a release is published. `pwsh tools/New-DevelopmentFeed.ps1 -Platform <a built platform> -Version 0.1.0-dev.1 -Destination <folder>` writes one. The download is checked as a published release's is: the hosts, https, and its checksum.
 
-## License
+## Licence
 RDCore.HexIDE is licensed under the GNU General Public License, version 3: see [LICENSE-GPLv3.md](LICENSE-GPLv3.md). The licence file reproduces the official text, in English. A French version of the licence is available on request.
 
 ---
