@@ -2,6 +2,8 @@
 
   <PropertyGroup>
     <IsPackable>false</IsPackable>
+    <AssemblyTitle>RDCore for HexIDE Tests</AssemblyTitle>
+    <Description>The tests of the RDCore add-in for HexIDE.</Description>
   </PropertyGroup>
 
   <ItemGroup>
