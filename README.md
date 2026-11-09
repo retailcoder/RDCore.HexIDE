@@ -7,7 +7,7 @@
 > 👋 Hi! New here? _Rubberduck_ was always an open-source initiative. **RDCore honors it with an Open-Core formula**.  
 > <small>See [rubberduckvba.ca](https://rubberduckvba.ca) for more information.</small>
 
-This repository holds **RDCore for HexIDE**, the add-in that brings the [RDCore](https://github.com/rubberduck-vba/RDCore) platform into the [HexIDE](https://github.com/hexide-io/HexIDE) IDE, under **⚖️GPLv3**:
+This repository holds **RDCore for HexIDE**, the add-in that brings the [RDCore](https://github.com/rubberduck-vba/RDCore) platform into the [HexIDE](https://github.com/hexide-io/HexIDE) IDE, under **⚖️GPLv3 or later**:
 
 - **RDCore.HexIDE**: the add-in. It registers RDCore's language server with HexIDE while an RDCore project (`.rdproj`) is open, opens `.rdproj` projects, and offers RDCore's debugger to F5. It talks to the platform through [RDCore.SDK.Protocol](https://github.com/rubberduck-vba/RDCore.SDK) over HexIDE's own language-server connection.
 - **RDCore.PlatformInstaller**: gets the RDCore platform onto the machine. With your consent it downloads the platform from RDCore's GitHub releases, checks it and deploys it, and keeps it up to date. It has no dependency on HexIDE, and will become part of RDCore's own installer.
@@ -51,6 +51,9 @@ Two settings are for working on RDCore and on the add-in. The add-in reads them 
 
 - `platformRoot` runs the platform at that folder, such as a build's `artifacts/rdcore-dev`, instead of an installed one. Nothing is downloaded while it is set, and it wins over `developmentFeed`.
 - `developmentFeed` downloads releases from a folder instead of GitHub, to try the question, the download and the installation before a release is published. `pwsh tools/New-DevelopmentFeed.ps1 -Platform <a built platform> -Version 0.1.0-dev.1 -Destination <folder>` writes one. The download is checked as a published release's is: the hosts, https, and its checksum.
+
+## Licence
+RDCore.HexIDE is licensed under the GNU General Public License, version 3 or any later version: see [LICENSE-GPLv3.md](LICENSE-GPLv3.md). The licence file reproduces the official text, in English. A French version of the licence is available on request.
 
 ---
 ### See also

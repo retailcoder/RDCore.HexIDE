@@ -2,6 +2,8 @@
 
   <PropertyGroup>
     <IsPackable>false</IsPackable>
+    <AssemblyTitle>RDCore Platform Installer Tests</AssemblyTitle>
+    <Description>The tests of the RDCore platform installer.</Description>
   </PropertyGroup>
 
   <ItemGroup>

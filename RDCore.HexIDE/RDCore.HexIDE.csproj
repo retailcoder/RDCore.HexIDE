@@ -4,6 +4,8 @@
   <PropertyGroup>
     <OutputType>Library</OutputType>
     <RootNamespace>RDCore.HexIDE</RootNamespace>
+    <AssemblyTitle>RDCore for HexIDE</AssemblyTitle>
+    <Description>The HexIDE add-in of the RDCore platform: it installs the platform and connects HexIDE to its language server.</Description>
     <CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
   </PropertyGroup>
 
