@@ -10,7 +10,7 @@ Assurez-vous d'abord d'avoir lu et accepté les termes de [l'_Entente de Licence
 - 🧠 **VOUS DÉCLAREZ** que VOUS ÊTES L'AUTEUR UNIQUE de vos contributions _et que celles-ci sont LIBRES DE DROITS externes_ (i.e. vous effectuez ces contributions en votre propre nom et sans dépendances ou implications légales externes);
   - Vous pouvez donc expliquer vos contributions, justifier vos décisions, et effectuer par vous-même la maintenance de vos contributions.
 - 🔒 **VOUS CONSERVEZ** votre copyright _sur vos contributions_ - mais la plateforme et ses marques de commerces (détenues ou revendiquées) ne sont pas négociables;
-- ⚖️ **VOS CONTRIBUTIONS DEMEURENT OPEN-SOURCE** sous **⚖️GPLv3** (RDCore.HexIDE);
+- ⚖️ **VOS CONTRIBUTIONS DEMEURENT OPEN-SOURCE** sous **⚖️GPLv3 ou toute version ultérieure**, la licence de ce référentiel, telle qu'indiquée dans [LICENSE-GPLv3.md](LICENSE-GPLv3.md);
 - 🤝 **VOUS AUTORISEZ L'INTÉGRATION** de vos contributions par le détenteur de la plateforme dans une **VERSION PRIVÉE SOUS LICENCE COMMERCIALE**.
 
 Ce dernier point constituant en toute transparence **l'intérêt commercial** motivant la publication et la réalisation de ce projet.
@@ -64,7 +64,7 @@ Please first read and accept the terms of our [_Contributor License Agreement_ (
 - 🧠 **YOU DECLARE** that YOU ARE THE SOLE AUTHOR of your contributions _and that these are FREE OF ANY EXTERNAL RIGHTS_ (i.e. you are making these contributions under your own name, without any external dependencies or legal implications);
   - You can therefore explain your contributions, justify your decisions, and maintain yourself the code you contribute.
 - 🔒 **YOU KEEP** your copyright _on your contributions_ - but the platform and its trademarks (held or claimed) are not negociable;
-- ⚖️ **YOUR CONTRIBUTIONS REMAIN OPEN-SOURCE** under **⚖️GPLv3** (RDCore.HexIDE, RDCore.PlatformInstaller).
+- ⚖️ **YOUR CONTRIBUTIONS REMAIN OPEN-SOURCE** under **⚖️GPLv3 or later**, the license of this repository, as stated in [LICENSE-GPLv3.md](LICENSE-GPLv3.md).
 - 🤝 **YOU AUTHORIZE THE INTEGRATION** of your contributions by the platform owner into a **PRIVATE VERSION UNDER A COMMERCIAL LICENSE**.
 
 This last point transparently constituting the **commercial interest** motivating the publication and implementation of this project.
