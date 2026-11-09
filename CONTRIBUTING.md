@@ -10,7 +10,7 @@ Assurez-vous d'abord d'avoir lu et accepté les termes de [l'_Entente de Licence
 - 🧠 **VOUS DÉCLAREZ** que VOUS ÊTES L'AUTEUR UNIQUE de vos contributions _et que celles-ci sont LIBRES DE DROITS externes_ (i.e. vous effectuez ces contributions en votre propre nom et sans dépendances ou implications légales externes);
   - Vous pouvez donc expliquer vos contributions, justifier vos décisions, et effectuer par vous-même la maintenance de vos contributions.
 - 🔒 **VOUS CONSERVEZ** votre copyright _sur vos contributions_ - mais la plateforme et ses marques de commerces (détenues ou revendiquées) ne sont pas négociables;
-- ⚖️ **VOS CONTRIBUTIONS DEMEURENT OPEN-SOURCE** sous **⚖️GPLv3** (RDCore.HexIDE, RDCore.PlatformInstaller);
+- ⚖️ **VOS CONTRIBUTIONS DEMEURENT OPEN-SOURCE** sous **⚖️GPLv3** (RDCore.HexIDE);
 - 🤝 **VOUS AUTORISEZ L'INTÉGRATION** de vos contributions par le détenteur de la plateforme dans une **VERSION PRIVÉE SOUS LICENCE COMMERCIALE**.
 
 Ce dernier point constituant en toute transparence **l'intérêt commercial** motivant la publication et la réalisation de ce projet.
