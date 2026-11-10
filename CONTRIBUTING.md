@@ -42,7 +42,7 @@ dotnet build RDCore.HexIDE.slnx
 dotnet test RDCore.HexIDE.slnx
 ```
 
-`Get-Dependencies.ps1` récupère dans `deps/` les sources que fixe `tools/dependencies.json` : le contrat d'add-in de HexIDE, et RDCore.SDK.Protocol en attendant sa publication en paquet.
+`Get-Dependencies.ps1` récupère dans `deps/` les sources que fixe `tools/dependencies.json` : le contrat d'add-in de HexIDE. Le paquet RDCore.SDK provient de nuget.org.
 
 Une exécution réussie **doit rapporter un nombre de tests non nul**: une exécution qui ne découvre aucun test n'est pas une exécution réussie. L'option `--configuration Release` bâtit et teste de la même manière; l'intégration continue valide les deux configurations.
 
@@ -97,7 +97,7 @@ dotnet build RDCore.HexIDE.slnx
 dotnet test RDCore.HexIDE.slnx
 ```
 
-`Get-Dependencies.ps1` fetches the sources `tools/dependencies.json` pins into `deps/`: HexIDE's add-in contract, and RDCore.SDK.Protocol until it is published as a package.
+`Get-Dependencies.ps1` fetches the sources `tools/dependencies.json` pins into `deps/`: HexIDE's add-in contract. The RDCore.SDK package comes from nuget.org.
 
 A successful run **must report a non-zero test count**: a run that discovers no tests is not a passing run. The `--configuration Release` switch builds and tests the same way; continuous integration validates both configurations.
 
