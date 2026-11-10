@@ -9,7 +9,7 @@
 
 This repository holds **RDCore for HexIDE**, the add-in that brings the [RDCore](https://github.com/rubberduck-vba/RDCore) platform into the [HexIDE](https://github.com/hexide-io/HexIDE) IDE, under **⚖️GPLv3 or later**:
 
-- **RDCore.HexIDE**: the add-in. It registers RDCore's language server with HexIDE while an RDCore project (`.rdproj`) is open, opens `.rdproj` projects, and offers RDCore's debugger to F5. It talks to the platform through [RDCore.SDK.Protocol](https://github.com/rubberduck-vba/RDCore.SDK) over HexIDE's own language-server connection.
+- **RDCore.HexIDE**: the add-in. It registers RDCore's language server with HexIDE while an RDCore project (`.rdproj`) is open, opens `.rdproj` projects, and offers RDCore's debugger to F5. It talks to the platform through RDCore.SDK.Protocol, an assembly of the [RDCore.SDK](https://www.nuget.org/packages/RDCore.SDK) package, over HexIDE's own language-server connection.
 - **RDCore.PlatformInstaller**: gets the RDCore platform onto the machine. With your consent it downloads the platform from RDCore's GitHub releases, checks it and deploys it, and keeps it up to date. It has no dependency on HexIDE, and will become part of RDCore's own installer.
 
 The platform itself, the RD-VBA runtime included, lives in the [RDCore](https://github.com/rubberduck-vba/RDCore) repository and runs as separate processes. What you build with RDCore is yours (see [RDCore's NOTICE](https://github.com/rubberduck-vba/RDCore/blob/main/NOTICE.md)).
@@ -34,7 +34,7 @@ dotnet build RDCore.HexIDE.slnx
 dotnet test RDCore.HexIDE.slnx
 ```
 
-`Get-Dependencies.ps1` fetches the sources the add-in builds against, at the versions `tools/dependencies.json` pins, into `deps/`: HexIDE's add-in contract (`HexIDE.Core`), and `RDCore.SDK.Protocol` until it is published as a package.
+`Get-Dependencies.ps1` fetches the sources the add-in builds against, at the versions `tools/dependencies.json` pins, into `deps/`: HexIDE's add-in contract (`HexIDE.Core`). The RDCore.SDK package comes from nuget.org.
 
 `pwsh tools/Pack-Addin.ps1` lays the add-in out as a HexIDE add-in package in `artifacts/addins/rdcore/`: copy that folder into the `addins` folder beside HexIDE's executable. The package is unsigned for now, so HexIDE loads it only in developer mode with unsigned add-ins allowed.
 

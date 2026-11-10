@@ -9,7 +9,7 @@
 
 Ce dépôt contient **RDCore pour HexIDE**, l'add-in qui amène la plateforme [RDCore](https://github.com/rubberduck-vba/RDCore) dans l'IDE [HexIDE](https://github.com/hexide-io/HexIDE), sous **⚖️GPLv3 ou toute version ultérieure** :
 
-- **RDCore.HexIDE** : l'add-in. Il inscrit le serveur de langage de RDCore auprès de HexIDE tant qu'un projet RDCore (`.rdproj`) est ouvert, ouvre les projets `.rdproj`, et offre le débogueur de RDCore à F5. Il parle à la plateforme par [RDCore.SDK.Protocol](https://github.com/rubberduck-vba/RDCore.SDK), sur la connexion de serveur de langage de HexIDE elle-même.
+- **RDCore.HexIDE** : l'add-in. Il inscrit le serveur de langage de RDCore auprès de HexIDE tant qu'un projet RDCore (`.rdproj`) est ouvert, ouvre les projets `.rdproj`, et offre le débogueur de RDCore à F5. Il parle à la plateforme par RDCore.SDK.Protocol, un assembly du paquet [RDCore.SDK](https://www.nuget.org/packages/RDCore.SDK), sur la connexion de serveur de langage de HexIDE elle-même.
 - **RDCore.PlatformInstaller** : installe la plateforme RDCore sur le poste. Avec votre consentement, il télécharge la plateforme depuis les publications GitHub de RDCore, la vérifie, la déploie et la tient à jour. Il ne dépend aucunement de HexIDE et fera partie de l'installateur de RDCore lui-même.
 
 La plateforme elle-même, incluant le runtime RD-VBA, se trouve dans le dépôt [RDCore](https://github.com/rubberduck-vba/RDCore) et s'exécute dans des processus distincts. Ce que vous construisez avec RDCore vous appartient (voir l'[AVIS de RDCore](https://github.com/rubberduck-vba/RDCore/blob/main/NOTICE.md)).
@@ -34,7 +34,7 @@ dotnet build RDCore.HexIDE.slnx
 dotnet test RDCore.HexIDE.slnx
 ```
 
-`Get-Dependencies.ps1` récupère dans `deps/` les sources contre lesquelles l'add-in est bâti, aux versions que fixe `tools/dependencies.json` : le contrat d'add-in de HexIDE (`HexIDE.Core`), et `RDCore.SDK.Protocol` en attendant sa publication en paquet.
+`Get-Dependencies.ps1` récupère dans `deps/` les sources contre lesquelles l'add-in est bâti, aux versions que fixe `tools/dependencies.json` : le contrat d'add-in de HexIDE (`HexIDE.Core`). Le paquet RDCore.SDK provient de nuget.org.
 
 `pwsh tools/Pack-Addin.ps1` dispose l'add-in en paquet d'add-in HexIDE dans `artifacts/addins/rdcore/` : copiez ce dossier dans le dossier `addins` à côté de l'exécutable de HexIDE. Le paquet n'est pas encore signé : HexIDE ne le charge donc qu'en mode développeur, avec les add-ins non signés permis.
 

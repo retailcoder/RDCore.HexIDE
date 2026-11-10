@@ -12,11 +12,12 @@
   <ItemGroup>
     <!-- the add-in contract: HexIDE's own copy is the one loaded, so none ships with the add-in. -->
     <ProjectReference Include="$(HexIdeCoreProject)" Private="false" />
-    <ProjectReference Include="$(RDCoreProtocolProject)" />
     <ProjectReference Include="..\RDCore.PlatformInstaller\RDCore.PlatformInstaller.csproj" />
   </ItemGroup>
 
   <ItemGroup>
+    <!-- the platform's protocol: RDCore.SDK.Protocol, in the RDCore.SDK package. -->
+    <PackageReference Include="RDCore.SDK" Version="$(RDCoreSdkVersion)" />
     <!-- HexIDE's own Avalonia is the one loaded, for the same reason. -->
     <PackageReference Include="Avalonia" Version="$(HexIdeAvaloniaVersion)" ExcludeAssets="runtime" />
     <!-- HexIDE's own StreamJsonRpc is the one loaded too: an add-in assembly the package doesn't carry resolves to HexIDE's,
