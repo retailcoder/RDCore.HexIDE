@@ -34,7 +34,7 @@
     <EnforceCodeStyleInBuild>true</EnforceCodeStyleInBuild>
   </PropertyGroup>
 
-  <!-- the RDCore.SDK package from nuget.org, whose RDCore.SDK.Protocol assembly the add-in talks to the platform through. -->
+  <!-- the version of the RDCore.SDK package from nuget.org: the add-in talks to the platform through its RDCore.SDK.Protocol assembly. -->
   <PropertyGroup>
     <RDCoreSdkVersion>0.1.0-alpha</RDCoreSdkVersion>
   </PropertyGroup>
