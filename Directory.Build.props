@@ -34,12 +34,16 @@
     <EnforceCodeStyleInBuild>true</EnforceCodeStyleInBuild>
   </PropertyGroup>
 
+  <!-- the RDCore.SDK package from nuget.org, whose RDCore.SDK.Protocol assembly the add-in talks to the platform through. -->
+  <PropertyGroup>
+    <RDCoreSdkVersion>0.1.0-alpha</RDCoreSdkVersion>
+  </PropertyGroup>
+
   <!-- the sources the add-in builds against until they are packages. tools/Get-Dependencies.ps1 fetches them into deps/, at the
        commits tools/dependencies.json pins: those two files and these properties are the only places that name them. -->
   <PropertyGroup>
     <DependenciesRoot>$(MSBuildThisFileDirectory)deps/</DependenciesRoot>
     <HexIdeCoreProject>$(DependenciesRoot)HexIDE/IDE/HexIDE.Core/HexIDE.Core.csproj</HexIdeCoreProject>
-    <RDCoreProtocolProject>$(DependenciesRoot)RDCore/RDCore.SDK.Protocol/RDCore.SDK.Protocol.csproj</RDCoreProtocolProject>
     <!-- HexIDE shares Avalonia with its add-ins, so the add-in compiles against the version HexIDE ships and carries none of its own. -->
     <HexIdeAvaloniaVersion>12.0.5</HexIdeAvaloniaVersion>
     <!-- HexIDE's JSON-RPC: the add-in compiles against it only, to refuse a request with the error code HexIDE passes on as is. -->
