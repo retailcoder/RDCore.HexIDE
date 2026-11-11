@@ -276,7 +276,7 @@ internal sealed class PlatformSource(AddinSettings settings, string settingsPath
         var sdk = AddinSettings.SdkVersion;
         return platform.IsBuiltWith(sdk)
             ? null
-            : Strings.SdkIncompatible(built.Text, sdk.Core.Major > 0 ? $"{sdk.Core.Major}.x" : $"{sdk.Core.Major}.{sdk.Core.Minor}.x");
+            : Strings.SdkIncompatible(built.Text, sdk.CompatibleRange);
     }
 
     private static bool IsInside(string path, string root)

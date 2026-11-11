@@ -21,11 +21,13 @@ public sealed class AddinSettingsTests : IDisposable
     }
 
     [TestMethod]
-    public void The_RDCore_SDK_version_the_build_records_is_the_one_the_add_in_runs_with()
+    public void The_RDCore_SDK_version_is_the_one_the_add_in_runs_with_and_was_built_with()
     {
         var loaded = typeof(RDCorePlatformClient).Assembly.GetCustomAttribute<AssemblyInformationalVersionAttribute>()!.InformationalVersion;
 
         Assert.AreEqual(PlatformVersion.Parse(loaded), AddinSettings.SdkVersion);
+        var built = typeof(AddinSettingsTests).Assembly.GetCustomAttributes<AssemblyMetadataAttribute>().Single(a => a.Key == "RDCoreSdkVersion").Value!;
+        Assert.AreEqual(PlatformVersion.Parse(built), AddinSettings.SdkVersion, "the SDK stamps the version it is packed as");
     }
 
     [TestMethod]
