@@ -14,7 +14,7 @@
 
     Beside it is rdcore-<version>-<rid>.release.json, which SHA256SUMS lists too: the platform's own release.json, with the
     RDCore.SDK version it was built with as its "sdk". The add-in offers only a release built with an RDCore.SDK compatible
-    with its own, so -SdkVersion is how a feed tries a release it doesn't offer.
+    with its own; an incompatible -SdkVersion writes a release that the add-in does not offer, to try that case.
 
     Point the add-in at the feed with "developmentFeed" in %LOCALAPPDATA%\RDCore\HexIDE\settings.json, and leave
     "platformRoot" out: that wins, and nothing is downloaded while it is set.
