@@ -24,6 +24,19 @@ RDCore est en développement **pré-alpha** actif, et cet add-in avec lui. Il fo
 
 [![Build and Test](https://github.com/rubberduck-vba/RDCore.HexIDE/actions/workflows/build.yml/badge.svg)](https://github.com/rubberduck-vba/RDCore.HexIDE/actions/workflows/build.yml)
 
+## Comment l'add-in trouve RDCore
+
+Quand un projet RDCore s'ouvre, ou qu'une exécution démarre, l'add-in cherche la plateforme de RDCore dans cet ordre :
+
+1. Le réglage `platformRoot`, s'il est réglé : un RDCore que vous avez choisi, ou un build de développement (voir [Réglages de développement](#réglages-de-développement)).
+2. La plateforme en usage dans le dossier de RDCore de vos données d'application locales (`%LOCALAPPDATA%\RDCore\Platform` sous Windows), que partagent l'installateur de l'add-in et la commande `rdc install` de RDCore.
+3. Une commande `rdc` dans votre PATH, hors de ce dossier, comme en laisse une archive de publication décompressée. L'add-in demande s'il faut l'utiliser, installer RDCore à la place, ou en localiser un autre.
+4. Sinon, la publication la plus récente, téléchargée depuis les publications GitHub de RDCore une fois que vous l'acceptez, ou un RDCore que vous localisez à la place.
+
+Un RDCore que l'add-in utilise doit être bâti pour votre poste, avec un RDCore.SDK compatible avec celui de l'add-in, comme le dit son `release.json` : les mêmes versions majeure et mineure avant 1.0, et la même version majeure à partir de 1.0. Un RDCore trouvé ou localisé qui ne l'est pas n'est pas utilisé, et un RDCore que vous avez choisi est vérifié de nouveau à chaque démarrage.
+
+L'add-in installe RDCore dans ce dossier, et ajoute sa commande `rdc` à votre PATH. Il ne met pas à jour un RDCore que vous avez choisi : l'utiliser enregistre son dossier comme votre réglage `platformRoot`. Rien n'est installé tant qu'un RDCore déjà sur le poste est en usage : il n'y en a donc jamais une deuxième copie.
+
 ## Bâtir
 
 À partir de la racine du dépôt, avec le SDK .NET 10 et PowerShell 7 :
@@ -49,7 +62,7 @@ Deux réglages servent au travail sur RDCore et sur l'add-in. L'add-in les lit d
 }
 ```
 
-- `platformRoot` exécute la plateforme de ce dossier, comme le `artifacts/rdcore-dev` d'un build, au lieu d'une plateforme installée. Rien n'est téléchargé tant qu'il est réglé, et il l'emporte sur `developmentFeed`.
+- `platformRoot` exécute la plateforme de ce dossier, comme le `artifacts/rdcore-dev` d'un build, au lieu d'une plateforme installée. Rien n'est téléchargé tant qu'il est réglé, et il l'emporte sur `developmentFeed`. Un build de développement n'a pas de `release.json` et s'exécute tel quel; un dossier qui en a un, comme la plateforme d'une publication, s'exécute tant qu'il convient à l'add-in.
 - `developmentFeed` télécharge les publications d'un dossier plutôt que de GitHub, pour essayer la question, le téléchargement et l'installation avant qu'une publication n'existe. `pwsh tools/New-DevelopmentFeed.ps1 -Platform <une plateforme bâtie> -Version 0.1.0-dev.1 -Destination <dossier> -SdkVersion 0.1.1-alpha` en écrit un : `-SdkVersion` nomme la version de RDCore.SDK avec laquelle un build de développement a été bâti, là où une plateforme munie d'un `release.json` nomme la sienne. Le téléchargement est vérifié comme celui d'une publication : les hôtes, https, et sa somme de contrôle. L'add-in n'offre une publication de ce dossier que si sa plateforme a été bâtie avec un RDCore.SDK compatible avec celui de l'add-in, comme il le fait pour une publication sur GitHub.
 
 ## Licence

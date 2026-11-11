@@ -24,6 +24,19 @@ RDCore is in active **pre-alpha** development, and this add-in with it. It runs 
 
 [![Build and Test](https://github.com/rubberduck-vba/RDCore.HexIDE/actions/workflows/build.yml/badge.svg)](https://github.com/rubberduck-vba/RDCore.HexIDE/actions/workflows/build.yml)
 
+## How the add-in finds RDCore
+
+When an RDCore project opens, or a run starts, the add-in looks for RDCore's platform in this order:
+
+1. The `platformRoot` setting, when it is set: an RDCore you chose, or a development build (see [Development settings](#development-settings)).
+2. The platform in use in RDCore's folder of your local application data (`%LOCALAPPDATA%\RDCore\Platform` on Windows), which the add-in's installer and RDCore's `rdc install` share.
+3. An `rdc` on your PATH outside that folder, as an unpacked release archive leaves one. The add-in asks whether to use it, to install RDCore instead, or to locate another one.
+4. Otherwise, the newest release, downloaded from RDCore's GitHub releases once you agree, or an RDCore you locate instead.
+
+An RDCore the add-in uses must be built for your machine, with an RDCore.SDK compatible with the add-in's own, as its `release.json` says: the same major and minor versions before 1.0, and the same major version from 1.0. One found or located that isn't is not used, and an RDCore you chose is checked again at each start.
+
+The add-in installs RDCore in that folder, and puts its `rdc` command on your PATH. It doesn't update an RDCore you chose: using one saves its folder as your `platformRoot` setting. Nothing is installed while an RDCore already on the machine is in use, so there is never a second copy of it.
+
 ## Building
 
 From the repository root, with the .NET 10 SDK and PowerShell 7:
@@ -49,7 +62,7 @@ Two settings are for working on RDCore and on the add-in. The add-in reads them 
 }
 ```
 
-- `platformRoot` runs the platform at that folder, such as a build's `artifacts/rdcore-dev`, instead of an installed one. Nothing is downloaded while it is set, and it wins over `developmentFeed`.
+- `platformRoot` runs the platform at that folder, such as a build's `artifacts/rdcore-dev`, instead of an installed one. Nothing is downloaded while it is set, and it wins over `developmentFeed`. A development build has no `release.json` and runs as it is; a folder with one, as a release's platform has, runs while it suits the add-in.
 - `developmentFeed` downloads releases from a folder instead of GitHub, to try the question, the download and the installation before a release is published. `pwsh tools/New-DevelopmentFeed.ps1 -Platform <a built platform> -Version 0.1.0-dev.1 -Destination <folder> -SdkVersion 0.1.1-alpha` writes one: `-SdkVersion` names the RDCore.SDK version a development build was built with, where a platform with a `release.json` names its own. The download is checked as a published release's is: the hosts, https, and its checksum. The add-in offers a release of the feed only when its platform was built with an RDCore.SDK compatible with the add-in's own, as it does for a published release.
 
 ## Licence
