@@ -40,6 +40,14 @@ internal sealed record AddinSettings
         typeof(AddinSettings).Assembly.GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion
             .Split('+')[0].Contains('-') ?? false;
 
+    /// <summary>
+    /// The version of the RDCore.SDK package this build of the add-in is built with, as the build records it: the installer
+    /// offers only a platform built with a compatible one.
+    /// </summary>
+    public static PlatformVersion SdkVersion => PlatformVersion.Parse(
+        typeof(AddinSettings).Assembly.GetCustomAttributes<AssemblyMetadataAttribute>()
+            .Single(attribute => attribute.Key == "RDCoreSdkVersion").Value!);
+
     /// <summary>The settings at <paramref name="path"/>; the defaults when there are none, or they can't be read.</summary>
     public static AddinSettings Load(string path)
     {

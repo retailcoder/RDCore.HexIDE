@@ -33,7 +33,12 @@ public sealed class RDCoreAddin : IAddin
         var settings = AddinSettings.Load(AddinSettings.DefaultPath);
         http = settings.DevelopmentFeed is { Length: > 0 } feed ? new HttpClient(new DevelopmentFeed(feed)) : new HttpClient();
         var installer = new PlatformInstaller.PlatformInstaller(
-            new PlatformInstallerOptions { Root = PlatformInstallerOptions.DefaultRoot, Channel = settings.EffectiveChannel }, http);
+            new PlatformInstallerOptions
+            {
+                Root = PlatformInstallerOptions.DefaultRoot,
+                Channel = settings.EffectiveChannel,
+                SdkVersion = AddinSettings.SdkVersion,
+            }, http);
         // One source, so the server and a run share the one question and its answer.
         var platform = new PlatformSource(settings, installer, prompts);
         server = new RDCoreServer(host, platform, prompts);

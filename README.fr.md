@@ -50,7 +50,7 @@ Deux réglages servent au travail sur RDCore et sur l'add-in. L'add-in les lit d
 ```
 
 - `platformRoot` exécute la plateforme de ce dossier, comme le `artifacts/rdcore-dev` d'un build, au lieu d'une plateforme installée. Rien n'est téléchargé tant qu'il est réglé, et il l'emporte sur `developmentFeed`.
-- `developmentFeed` télécharge les publications d'un dossier plutôt que de GitHub, pour essayer la question, le téléchargement et l'installation avant qu'une publication n'existe. `pwsh tools/New-DevelopmentFeed.ps1 -Platform <une plateforme bâtie> -Version 0.1.0-dev.1 -Destination <dossier>` en écrit un. Le téléchargement est vérifié comme celui d'une publication : les hôtes, https, et sa somme de contrôle.
+- `developmentFeed` télécharge les publications d'un dossier plutôt que de GitHub, pour essayer la question, le téléchargement et l'installation avant qu'une publication n'existe. `pwsh tools/New-DevelopmentFeed.ps1 -Platform <une plateforme bâtie> -Version 0.1.0-dev.1 -Destination <dossier> -SdkVersion 0.1.1-alpha` en écrit un : `-SdkVersion` nomme la version de RDCore.SDK avec laquelle un build de développement a été bâti, là où une plateforme munie d'un `release.json` nomme la sienne. Le téléchargement est vérifié comme celui d'une publication : les hôtes, https, et sa somme de contrôle. L'add-in ne l'offre que si sa plateforme a été bâtie avec un RDCore.SDK compatible avec celui de l'add-in, comme pour une publication.
 
 ## Licence
 RDCore.HexIDE est licencié sous la Licence publique générale GNU, version 3 ou toute version ultérieure : voir [LICENSE-GPLv3.md](LICENSE-GPLv3.md). Le fichier de licence reproduit le texte officiel, en anglais. Une version française de la licence est disponible sur demande.

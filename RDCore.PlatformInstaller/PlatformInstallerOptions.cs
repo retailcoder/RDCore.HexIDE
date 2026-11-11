@@ -47,6 +47,20 @@ public sealed record PlatformInstallerOptions
     public long MaxReleasesBytes { get; init; } = 16L << 20;
 
     /// <summary>
+    /// The most a release's <c>rdcore-&lt;version&gt;-&lt;rid&gt;.release.json</c> may be; the release of a bigger one is not
+    /// offered. 4 MiB.
+    /// </summary>
+    public long MaxReleaseInfoBytes { get; init; } = 4L << 20;
+
+    /// <summary>
+    /// The version of the <c>RDCore.SDK</c> package the client was built with. A release is offered only when its platform was
+    /// built with a compatible one, as its <c>rdcore-&lt;version&gt;-&lt;rid&gt;.release.json</c> says: the same major and minor
+    /// versions before 1.0, and the same major version from 1.0. A release whose <c>release.json</c> doesn't say, or doesn't
+    /// match the release's <c>SHA256SUMS</c>, is not offered. Null offers every release, whatever it was built with.
+    /// </summary>
+    public PlatformVersion? SdkVersion { get; init; }
+
+    /// <summary>
     /// The root a user's platform is installed under: <c>RDCore/Platform</c> in the local application data folder, which is
     /// RDCore's own, not any one client's.
     /// </summary>

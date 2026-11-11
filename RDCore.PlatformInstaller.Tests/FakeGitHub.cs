@@ -8,8 +8,8 @@ using System.Text.Json;
 namespace RDCore.PlatformInstaller.Tests;
 
 /// <summary>
-/// GitHub's releases API and download hosts, served from memory: each release a test adds is listed, with its zip and its
-/// SHA256SUMS. Every request is recorded, so a test can tell what was downloaded.
+/// GitHub's releases API and download hosts, served from memory: each release a test adds is listed, with its archive, its
+/// release.json and its SHA256SUMS. Every request is recorded, so a test can tell what was downloaded.
 /// </summary>
 internal sealed class FakeGitHub : HttpMessageHandler
 {
@@ -36,31 +36,55 @@ internal sealed class FakeGitHub : HttpMessageHandler
     /// <param name="binaryMarker">Whether SHA256SUMS marks the archive as read in binary mode (<c>*name</c>).</param>
     /// <param name="tarGz">Whether its archive is a tar.gz, as a Linux or macOS release's is, rather than a zip.</param>
     /// <param name="archive">The archive's bytes, when they aren't those of <paramref name="entries"/>.</param>
+    /// <param name="sdk">
+    /// The RDCore.SDK version its <c>rdcore-&lt;version&gt;-&lt;rid&gt;.release.json</c> says the platform was built with, or
+    /// null for a <c>release.json</c> without an <c>sdk</c>.
+    /// </param>
+    /// <param name="releaseInfo">Whether the release has its <c>release.json</c> beside its archive.</param>
+    /// <param name="releaseInfoDigest">The digest SHA256SUMS lists for the <c>release.json</c>, when it isn't its own.</param>
     public FakeGitHub Release(string tag, bool prerelease = false, bool draft = false, string rid = "win-x64",
         IReadOnlyDictionary<string, string>? entries = null, string? digest = null, long? listedSize = null,
-        string host = "github.com", bool binaryMarker = false, bool tarGz = false, byte[]? archive = null)
+        string host = "github.com", bool binaryMarker = false, bool tarGz = false, byte[]? archive = null,
+        string? sdk = Sdk, bool releaseInfo = true, string? releaseInfoDigest = null)
     {
         var version = tag.TrimStart('v');
+        var download = $"https://{host}/rubberduck-vba/RDCore/releases/download/{tag}";
         var zipName = $"rdcore-{version}-{rid}.{(tarGz ? "tar.gz" : "zip")}";
         var zip = archive ?? (tarGz ? TarGzOf(entries ?? Platform(version, "")) : Zip(entries ?? Platform(version)));
-        var zipUrl = $"https://{host}/rubberduck-vba/RDCore/releases/download/{tag}/{zipName}";
-        var sumsUrl = $"https://{host}/rubberduck-vba/RDCore/releases/download/{tag}/SHA256SUMS";
+        var zipUrl = $"{download}/{zipName}";
+        var sumsUrl = $"{download}/SHA256SUMS";
+        var infoName = $"rdcore-{version}-{rid}.release.json";
+        var infoUrl = $"{download}/{infoName}";
+        var info = Encoding.UTF8.GetBytes(ReleaseInfo(sdk));
         files[zipUrl] = zip;
+        files[infoUrl] = info;
         files[sumsUrl] = Encoding.UTF8.GetBytes(
-            $"{digest ?? Convert.ToHexStringLower(SHA256.HashData(zip))} {(binaryMarker ? "*" : " ")}{zipName}\n");
-        releases.Add(new
+            $"{digest ?? Convert.ToHexStringLower(SHA256.HashData(zip))} {(binaryMarker ? "*" : " ")}{zipName}\n"
+            + $"{releaseInfoDigest ?? Convert.ToHexStringLower(SHA256.HashData(info))}  {infoName}\n");
+        List<object> assets =
+        [
+            new { name = zipName, browser_download_url = zipUrl, size = listedSize ?? zip.Length },
+            new { name = "SHA256SUMS", browser_download_url = sumsUrl, size = files[sumsUrl].Length },
+        ];
+        if (releaseInfo)
         {
-            tag_name = tag,
-            draft,
-            prerelease,
-            assets = new object[]
-            {
-                new { name = zipName, browser_download_url = zipUrl, size = listedSize ?? zip.Length },
-                new { name = "SHA256SUMS", browser_download_url = sumsUrl, size = files[sumsUrl].Length },
-            },
-        });
+            assets.Add(new { name = infoName, browser_download_url = infoUrl, size = info.Length });
+        }
+
+        releases.Add(new { tag_name = tag, draft, prerelease, assets });
         return this;
     }
+
+    /// <summary>The RDCore.SDK version a release's platform is built with unless a test says otherwise.</summary>
+    public const string Sdk = "0.1.1-alpha";
+
+    /// <summary>
+    /// A release's <c>release.json</c>, as RDCore's release workflow writes one, saying the platform was built with RDCore.SDK
+    /// <paramref name="sdk"/>; one without an <c>sdk</c> for null.
+    /// </summary>
+    public static string ReleaseInfo(string? sdk) => sdk is null
+        ? """{ "schema": 1, "runtime": { "name": "Microsoft.NETCore.App", "minimumVersion": "10.0.0" } }"""
+        : $$"""{ "schema": 1, "runtime": { "name": "Microsoft.NETCore.App", "minimumVersion": "10.0.0" }, "sdk": { "package": "RDCore.SDK", "version": "{{sdk}}" } }""";
 
     /// <summary>A zip of <paramref name="entries"/>, as a release's would be.</summary>
     public static byte[] ZipOf(IReadOnlyDictionary<string, string> entries) => Zip(entries);
@@ -73,7 +97,7 @@ internal sealed class FakeGitHub : HttpMessageHandler
     {
         ["rdcore.json"] = $$"""{ "platformVersion": "{{version}}", "langService": "RDCore.LanguageServer/RDCore.LanguageServer{{executableSuffix}}" }""",
         [$"RDCore.LanguageServer/RDCore.LanguageServer{executableSuffix}"] = "not really a server",
-        ["release.json"] = """{ "schema": 1, "runtime": { "name": "Microsoft.NETCore.App", "minimumVersion": "10.0.0" } }""",
+        ["release.json"] = ReleaseInfo(Sdk),
     };
 
     /// <summary>

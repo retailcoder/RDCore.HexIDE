@@ -25,6 +25,12 @@ public sealed record PlatformRelease(PlatformVersion Version, Uri Archive, long 
 
     /// <summary>Whether the archive is a tar.gz rather than a zip.</summary>
     internal bool IsTarGz => ArchiveName.EndsWith(".tar.gz", StringComparison.Ordinal);
+
+    /// <summary>
+    /// The release's <c>rdcore-&lt;version&gt;-&lt;rid&gt;.release.json</c>, which says what its platform was built with, or null
+    /// when the release has none.
+    /// </summary>
+    public Uri? ReleaseInfo { get; init; }
 }
 
 /// <summary>A platform deployed on the machine.</summary>
