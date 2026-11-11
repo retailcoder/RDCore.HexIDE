@@ -28,11 +28,6 @@
   </ItemGroup>
 
   <ItemGroup>
-    <!-- the RDCore.SDK version the add-in is built with: the installer offers only a platform built with a compatible one. -->
-    <AssemblyMetadata Include="RDCoreSdkVersion" Value="$(RDCoreSdkVersion)" />
-  </ItemGroup>
-
-  <ItemGroup>
     <InternalsVisibleTo Include="RDCore.HexIDE.Tests" />
     <InternalsVisibleTo Include="DynamicProxyGenAssembly2" />
   </ItemGroup>

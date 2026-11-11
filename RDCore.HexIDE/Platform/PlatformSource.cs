@@ -1,11 +1,13 @@
 using System.Diagnostics;
 using RDCore.HexIDE.Resources;
 using RDCore.PlatformInstaller;
+using RDCore.SDK.Client;
+using RDCore.SDK.Platform;
 
 namespace RDCore.HexIDE.Platform;
 
 /// <summary>The platform a server runs from: its root, and the installed version when it is one, not a development root.</summary>
-internal sealed record PlatformChoice(string Root, InstalledPlatform? Installed);
+internal sealed record PlatformChoice(string Root, DeployedPlatform? Installed);
 
 /// <summary>There is no platform to run; the message says why, in the user's language.</summary>
 internal sealed class PlatformUnavailableException(string message, Exception? innerException = null)
@@ -245,7 +247,7 @@ internal sealed class PlatformSource(AddinSettings settings, string settingsPath
 
             // rdc is in the platform's RDCore.CLI folder, or at its root.
             var beside = Path.GetDirectoryName(rdc)!;
-            var root = File.Exists(Path.Combine(beside, "rdcore.json")) ? beside : Path.GetDirectoryName(beside);
+            var root = File.Exists(Path.Combine(beside, PlatformManifest.FileName)) ? beside : Path.GetDirectoryName(beside);
             if (root is null || IsInside(root, installer.Root))
             {
                 continue;
@@ -276,7 +278,7 @@ internal sealed class PlatformSource(AddinSettings settings, string settingsPath
         var sdk = AddinSettings.SdkVersion;
         return platform.IsBuiltWith(sdk)
             ? null
-            : Strings.SdkIncompatible(built.Text, sdk.Core.Major > 0 ? $"{sdk.Core.Major}.x" : $"{sdk.Core.Major}.{sdk.Core.Minor}.x");
+            : Strings.SdkIncompatible(built.Text, sdk.CompatibleRange);
     }
 
     private static bool IsInside(string path, string root)
@@ -313,25 +315,29 @@ internal sealed class PlatformSource(AddinSettings settings, string settingsPath
     }
 
     /// <summary>
-    /// Makes sure the platform <paramref name="choice"/> names is still there before its server starts: its manifest, and
-    /// <paramref name="languageServer"/>, the executable the server's launch names. When either has gone, the same version is
-    /// deployed again, as the server's launch names it, once the user agrees.
+    /// Makes sure the platform <paramref name="choice"/> names is still whole before its server starts, as
+    /// <see cref="RDCoreLanguageServerLaunch.FindLanguageServer"/> finds its language server. When it is not, the same version
+    /// (<see cref="PlatformChoice.Installed"/>) is deployed again, once the user agrees.
     /// </summary>
     /// <param name="choice">The platform the server runs from.</param>
-    /// <param name="languageServer">The executable the server's launch names.</param>
     /// <param name="cancellationToken">Ends the check, when the server's start is ended.</param>
-    /// <exception cref="InvalidOperationException">It is gone and can't be had again; the message says why, for HexIDE to show.</exception>
-    public async Task EnsureStillThereAsync(PlatformChoice choice, string languageServer, CancellationToken cancellationToken)
+    /// <exception cref="InvalidOperationException">It is not whole and cannot be deployed again; the message says why, for HexIDE to show.</exception>
+    public async Task EnsureStillThereAsync(PlatformChoice choice, CancellationToken cancellationToken)
     {
-        if (IsWhole(choice, languageServer))
+        string unusable;
+        try
         {
+            _ = RDCoreLanguageServerLaunch.FindLanguageServer(choice.Root);
             return;
+        }
+        catch (Exception ex) when (ex is IOException or InvalidDataException or UnauthorizedAccessException)
+        {
+            unusable = Failures.Unusable(ex);
         }
 
         if (choice.Installed is not { } installed)
         {
-            throw new InvalidOperationException(Strings.PlatformRootUnusable(choice.Root,
-                HasManifest(choice) ? Strings.LanguageServerMissing : Strings.NoManifest));
+            throw new InvalidOperationException(Strings.PlatformRootUnusable(choice.Root, unusable));
         }
 
         PlatformRelease? release;
@@ -368,13 +374,6 @@ internal sealed class PlatformSource(AddinSettings settings, string settingsPath
         }
     }
 
-    /// <summary>Whether the platform <paramref name="choice"/> names still has its manifest and <paramref name="languageServer"/>.</summary>
-    /// <param name="choice">The platform.</param>
-    /// <param name="languageServer">The executable the server's launch names.</param>
-    public static bool IsWhole(PlatformChoice choice, string languageServer) => HasManifest(choice) && File.Exists(languageServer);
-
-    private static bool HasManifest(PlatformChoice choice) => File.Exists(Path.Combine(choice.Root, "rdcore.json"));
-
     // Asked once for every project that wants it at the same time: a question still open is shared, and one answered is never
     // answered again, so a later question is asked afresh.
     private Task<Decision> DecideAsync(Func<Task<Decision>> decide)
@@ -400,9 +399,9 @@ internal sealed class PlatformSource(AddinSettings settings, string settingsPath
         }
     }
 
-    private async Task<InstalledPlatform> InstallAsync(PlatformRelease release, CancellationToken cancellationToken)
+    private async Task<DeployedPlatform> InstallAsync(PlatformRelease release, CancellationToken cancellationToken)
     {
-        InstalledPlatform deployed;
+        DeployedPlatform deployed;
         using (var view = prompts.ShowInstall(release))
         {
             deployed = await Task.Run(() => installer.InstallAsync(release, view, cancellationToken), cancellationToken);
@@ -414,7 +413,7 @@ internal sealed class PlatformSource(AddinSettings settings, string settingsPath
 
     // The version in use's rdc on the user's PATH, once for each version this add-in deployed and made the one in use. An older
     // version deployed beside the one in use isn't put there.
-    private async Task AddToPathAsync(InstalledPlatform deployed)
+    private async Task AddToPathAsync(DeployedPlatform deployed)
     {
         if (installer.Current?.Version.Equals(deployed.Version) != true)
         {

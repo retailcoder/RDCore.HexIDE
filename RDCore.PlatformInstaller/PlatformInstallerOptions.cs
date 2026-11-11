@@ -1,4 +1,5 @@
 using System.Runtime.InteropServices;
+using RDCore.SDK.Platform;
 
 namespace RDCore.PlatformInstaller;
 
@@ -48,9 +49,9 @@ public sealed record PlatformInstallerOptions
 
     /// <summary>
     /// The most a release's <c>rdcore-&lt;version&gt;-&lt;rid&gt;.release.json</c> may be; the release of a bigger one is not
-    /// offered. 4 MiB.
+    /// offered. <see cref="PlatformReleaseManifest.MaxBytes"/>, 4 MiB, which is also the most a release manifest is read to.
     /// </summary>
-    public long MaxReleaseInfoBytes { get; init; } = 4L << 20;
+    public long MaxReleaseInfoBytes { get; init; } = PlatformReleaseManifest.MaxBytes;
 
     /// <summary>
     /// The version of the <c>RDCore.SDK</c> package the client was built with. A release is offered only when its platform was
@@ -64,8 +65,7 @@ public sealed record PlatformInstallerOptions
     /// The root a user's platform is installed under: <c>RDCore/Platform</c> in the local application data folder, which is
     /// RDCore's own, not any one client's.
     /// </summary>
-    public static string DefaultRoot =>
-        Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "RDCore", "Platform");
+    public static string DefaultRoot => SharedPlatformRoot.ForThisUser;
 
     /// <summary>
     /// The runtime identifier of a platform built for this machine: its system (<c>win</c>, <c>osx</c> or <c>linux</c>) and the

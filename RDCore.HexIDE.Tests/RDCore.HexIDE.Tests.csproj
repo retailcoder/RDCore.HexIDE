@@ -26,6 +26,11 @@
   </ItemGroup>
 
   <ItemGroup>
+    <!-- the RDCore.SDK version the add-in is built with, which the SDK stamps into the assemblies it loads. -->
+    <AssemblyMetadata Include="RDCoreSdkVersion" Value="$(RDCoreSdkVersion)" />
+  </ItemGroup>
+
+  <ItemGroup>
     <Using Include="Microsoft.VisualStudio.TestTools.UnitTesting" />
   </ItemGroup>
 

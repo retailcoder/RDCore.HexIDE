@@ -2,6 +2,8 @@ using System.Reflection;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using RDCore.PlatformInstaller;
+using RDCore.SDK;
+using RDCore.SDK.Platform;
 
 namespace RDCore.HexIDE;
 
@@ -48,12 +50,10 @@ internal sealed record AddinSettings
             .Split('+')[0].Contains('-') ?? false;
 
     /// <summary>
-    /// The version of the RDCore.SDK package this build of the add-in is built with, as the build records it: the installer
-    /// offers only a platform built with a compatible one.
+    /// The version of the RDCore.SDK package the add-in runs with, as the SDK says it (<see cref="RDCoreSdk.Version"/>): the
+    /// installer offers only a platform built with a compatible one.
     /// </summary>
-    public static PlatformVersion SdkVersion => PlatformVersion.Parse(
-        typeof(AddinSettings).Assembly.GetCustomAttributes<AssemblyMetadataAttribute>()
-            .Single(attribute => attribute.Key == "RDCoreSdkVersion").Value!);
+    public static PlatformVersion SdkVersion => RDCoreSdk.Version;
 
     /// <summary>
     /// Writes <paramref name="platformRoot"/> as the <c>platformRoot</c> of the settings at <paramref name="path"/>, or takes it out

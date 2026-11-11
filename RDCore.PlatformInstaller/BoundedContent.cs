@@ -28,7 +28,7 @@ internal static class BoundedContent
                 throw tooLarge(buffer.Length + read);
             }
 
-            buffer.Write(chunk, 0, read);
+            await buffer.WriteAsync(chunk.AsMemory(0, read), cancellationToken).ConfigureAwait(false);
         }
         return buffer.ToArray();
     }

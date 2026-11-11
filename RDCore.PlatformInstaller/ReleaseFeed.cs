@@ -2,6 +2,7 @@ using System.Net.Http.Headers;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
+using RDCore.SDK.Platform;
 
 namespace RDCore.PlatformInstaller;
 
@@ -54,44 +55,10 @@ public sealed class ReleaseFeed(HttpClient http, PlatformInstallerOptions option
             .Select(release => release.Release)
             .FirstOrDefault(release => release.Version.Equals(version));
 
-    /// <summary>
-    /// Whether a client built with RDCore.SDK <paramref name="client"/> works with a platform built with <paramref name="built"/>:
-    /// the same major and minor versions before 1.0, and the same major version from 1.0.
-    /// </summary>
-    /// <param name="client">The version the client was built with.</param>
-    /// <param name="built">The version the platform was built with.</param>
-    internal static bool IsCompatible(PlatformVersion client, PlatformVersion built) =>
-        client.Core.Major == built.Core.Major && (client.Core.Major > 0 || client.Core.Minor == built.Core.Minor);
-
-    /// <summary>
-    /// The RDCore.SDK version a <c>release.json</c> says its platform was built with, from its
-    /// <c>"sdk": { "package": "RDCore.SDK", "version": "..." }</c>, or null when it says none or isn't JSON.
-    /// </summary>
-    /// <param name="releaseInfo">The <c>release.json</c>'s content.</param>
-    internal static PlatformVersion? SdkOf(byte[] releaseInfo)
-    {
-        try
-        {
-            using var document = JsonDocument.Parse(releaseInfo);
-            var root = document.RootElement;
-            return root.ValueKind == JsonValueKind.Object
-                && root.TryGetProperty("sdk", out var sdk) && sdk.ValueKind == JsonValueKind.Object
-                && sdk.TryGetProperty("package", out var package) && package.ValueKind == JsonValueKind.String
-                && package.GetString() == "RDCore.SDK"
-                && sdk.TryGetProperty("version", out var version) && version.ValueKind == JsonValueKind.String
-                && PlatformVersion.TryParse(version.GetString(), out var parsed)
-                ? parsed
-                : null;
-        }
-        catch (JsonException)
-        {
-            return null;
-        }
-    }
-
-    // Whether the release's release.json says its platform was built with an RDCore.SDK compatible with the client's. One the
-    // release doesn't have, that isn't there, is bigger than one should be, or doesn't match the release's SHA256SUMS says
-    // nothing the client can rely on, and its release is not offered.
+    // Whether the release's release.json says its platform was built with an RDCore.SDK compatible with the client's, by the
+    // SDK's rule (PlatformVersion.IsCompatibleWith). One the release doesn't have, that isn't there, is bigger than one should be,
+    // isn't a release manifest, or doesn't match the release's SHA256SUMS says nothing the client can rely on, and its release is
+    // not offered.
     private async Task<bool> IsBuiltWithAsync(PlatformRelease release, PlatformVersion sdk, CancellationToken cancellationToken)
     {
         if (release.ReleaseInfo is not { } url)
@@ -109,11 +76,11 @@ public sealed class ReleaseFeed(HttpClient http, PlatformInstallerOptions option
 
             var expected = Sha256Sums.Find(Encoding.UTF8.GetString(sums), Path.GetFileName(url.AbsolutePath));
             return expected is not null && Convert.ToHexStringLower(SHA256.HashData(info)) == expected
-                && SdkOf(info) is { } built && IsCompatible(sdk, built);
+                && PlatformReleaseManifest.Parse(info).IsBuiltWith(sdk);
         }
-        catch (PlatformInstallException)
+        catch (Exception ex) when (ex is PlatformInstallException or InvalidDataException)
         {
-            // Bigger than it should be.
+            // Bigger than it should be, or not a release manifest.
             return false;
         }
     }

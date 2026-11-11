@@ -209,8 +209,8 @@ internal sealed class FakeGitHub : HttpMessageHandler
             return count;
         }
 
-        public override int Read(byte[] buffer, int offset, int count) =>
-            ReadAsync(buffer.AsMemory(offset, count)).AsTask().GetAwaiter().GetResult();
+        // HttpClient reads it asynchronously only.
+        public override int Read(byte[] buffer, int offset, int count) => throw new NotSupportedException();
 
         public override void Flush()
         {

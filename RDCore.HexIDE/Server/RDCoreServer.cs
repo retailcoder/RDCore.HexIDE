@@ -3,6 +3,7 @@ using HexIDE.Lsp;
 using RDCore.HexIDE.Platform;
 using RDCore.HexIDE.Resources;
 using RDCore.SDK.Client;
+using RDCore.SDK.Platform;
 
 namespace RDCore.HexIDE.Server;
 
@@ -74,7 +75,7 @@ internal sealed class RDCoreServer(IHexIdeHost host, PlatformSource platform, IU
         try
         {
             // Held while the server is registered, so no installer removes the version it runs from.
-            lease = choice.Installed is { } installed ? PlatformInstaller.PlatformInstaller.Hold(installed) : null;
+            lease = choice.Installed is { } installed ? SharedPlatformRoot.Hold(installed) : null;
             launch = RDCoreLanguageServerLaunch.Prepare(new RDCoreLanguageServerLaunchOptions
             {
                 PlatformRoot = choice.Root,
@@ -95,7 +96,7 @@ internal sealed class RDCoreServer(IHexIdeHost host, PlatformSource platform, IU
         {
             connection = host.RegisterLanguageServer(new AddinLanguageServer(Entry(launch))
             {
-                BeforeLaunch = token => BeforeLaunchAsync(choice, launch.ExecutablePath, token),
+                BeforeLaunch = token => BeforeLaunchAsync(choice, token),
                 BeforeLaunchTimeout = BeforeLaunchTimeout,
                 AfterStart = async (current, token) =>
                 {
@@ -117,20 +118,20 @@ internal sealed class RDCoreServer(IHexIdeHost host, PlatformSource platform, IU
 
     // A version that isn't whole any more is deployed again without the lease, which would keep its folder from being
     // replaced: nothing runs from it before this start. It is held again once it is back, while the server is still registered.
-    private async Task BeforeLaunchAsync(PlatformChoice choice, string languageServer, CancellationToken cancellationToken)
+    private async Task BeforeLaunchAsync(PlatformChoice choice, CancellationToken cancellationToken)
     {
-        if (PlatformSource.IsWhole(choice, languageServer))
+        if (SharedPlatformRoot.IsWhole(choice.Root))
         {
             return;
         }
 
         ReleaseLease();
-        await platform.EnsureStillThereAsync(choice, languageServer, cancellationToken);
+        await platform.EnsureStillThereAsync(choice, cancellationToken);
         lock (leasing)
         {
             if (connection is not null && lease is null && choice.Installed is { } installed)
             {
-                lease = PlatformInstaller.PlatformInstaller.Hold(installed);
+                lease = SharedPlatformRoot.Hold(installed);
             }
         }
     }

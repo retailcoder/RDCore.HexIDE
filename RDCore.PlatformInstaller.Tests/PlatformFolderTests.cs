@@ -1,3 +1,5 @@
+using RDCore.SDK.Platform;
+
 namespace RDCore.PlatformInstaller.Tests;
 
 [TestClass]

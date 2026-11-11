@@ -1,3 +1,5 @@
+using RDCore.SDK.Platform;
+
 namespace RDCore.PlatformInstaller;
 
 /// <summary>Which releases are offered: releases only, or prereleases too.</summary>
@@ -33,14 +35,6 @@ public sealed record PlatformRelease(PlatformVersion Version, Uri Archive, long 
     public Uri? ReleaseInfo { get; init; }
 }
 
-/// <summary>A platform deployed on the machine.</summary>
-/// <param name="Version">Its version.</param>
-/// <param name="Root">Its platform root, the folder that holds <c>rdcore.json</c>.</param>
-public sealed record InstalledPlatform(PlatformVersion Version, string Root)
-{
-    /// <summary>The platform manifest's path.</summary>
-    public string Manifest => Path.Combine(Root, "rdcore.json");
-}
 
 /// <summary>What an installation is doing.</summary>
 public enum InstallStage
