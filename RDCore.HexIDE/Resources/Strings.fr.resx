@@ -18,7 +18,7 @@
   <data name="DownloadQuestion" xml:space="preserve">
     <value>Ce projet est un projet RDCore, et la plateforme de RDCore n'est pas encore sur ce poste.
 
-Télécharger RDCore {0} maintenant? Le téléchargement fait environ {1}, provient de {2}, et sera placé dans {3}.</value>
+Télécharger RDCore {0} maintenant? Le téléchargement fait environ {1}, provient de {2}, et sera placé dans {3}. Sa commande rdc est ajoutée à votre PATH.</value>
   </data>
   <data name="DownloadYes" xml:space="preserve">
     <value>Télécharger</value>
@@ -127,5 +127,42 @@ Télécharger RDCore {0} maintenant? Le téléchargement fait environ {1}, provi
   </data>
   <data name="DownloadDeclined" xml:space="preserve">
     <value>La plateforme de RDCore n'a pas été téléchargée : le projet ne peut donc pas s'exécuter.</value>
+  </data>
+  <data name="LocateInstead" xml:space="preserve">
+    <value>Si RDCore est déjà sur ce poste, vous pouvez plutôt le localiser.</value>
+  </data>
+  <data name="FoundQuestion" xml:space="preserve">
+    <value>RDCore {0} est déjà sur ce poste, dans {1}.
+
+L'utiliser? L'add-in ne le met pas à jour, et vous avise s'il cesse de fonctionner avec l'add-in. Ou installer RDCore dans {2}, où l'add-in le tient à jour et ajoute sa commande rdc à votre PATH.</value>
+  </data>
+  <data name="UseFound" xml:space="preserve">
+    <value>L'utiliser</value>
+  </data>
+  <data name="InstallInstead" xml:space="preserve">
+    <value>Installer</value>
+  </data>
+  <data name="Locate" xml:space="preserve">
+    <value>Localiser…</value>
+  </data>
+  <data name="LocateTitle" xml:space="preserve">
+    <value>Le dossier d'une plateforme RDCore, qui contient rdcore.json</value>
+  </data>
+  <data name="NotAPlatformFolder" xml:space="preserve">
+    <value>ce n'est pas une plateforme RDCore : il n'y a pas de rdcore.json, ou pas le serveur de langage que nomme son rdcore.json.</value>
+  </data>
+  <data name="SdkUnknown" xml:space="preserve">
+    <value>elle ne dit pas avec quel RDCore.SDK elle a été bâtie : il n'y a pas de release.json, ou son release.json n'a pas de sdk.</value>
+  </data>
+  <data name="SdkIncompatible" xml:space="preserve">
+    <value>elle a été bâtie avec RDCore.SDK {0}, et cette version de l'add-in fonctionne avec RDCore.SDK {1}.</value>
+  </data>
+  <data name="OtherSystem" xml:space="preserve">
+    <value>elle a été bâtie pour {0}, et ce poste est {1}.</value>
+  </data>
+  <data name="ChosenPlatformUnsuitable" xml:space="preserve">
+    <value>La plateforme RDCore {0}, dans {1}, est inutilisable avec cette version de l'add-in : {2}
+
+L'add-in cherche un autre RDCore, ou propose d'en installer un.</value>
   </data>
 </root>

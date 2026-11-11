@@ -1,5 +1,6 @@
 using System.Reflection;
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using RDCore.PlatformInstaller;
 
 namespace RDCore.HexIDE;
@@ -12,8 +13,14 @@ internal sealed record AddinSettings
     private static readonly JsonSerializerOptions Json = new() { PropertyNameCaseInsensitive = true };
 
     /// <summary>
-    /// A platform root to run instead of an installed platform, such as a build's <c>artifacts/rdcore-dev</c>: for working on
-    /// RDCore itself, and before any release is published. Nothing is downloaded while it is set.
+    /// A platform root to run instead of an installed platform. It is either of two kinds:
+    /// <list type="bullet">
+    /// <item>a development build, such as a build's <c>artifacts/rdcore-dev</c>, which has no <c>release.json</c>: for working on
+    /// RDCore itself, and before any release is published. It runs as it is.</item>
+    /// <item>an RDCore the user chose, already on the machine (<see cref="SavePlatformRoot"/>): a release's platform, which has a
+    /// <c>release.json</c>. It runs while it was built with an RDCore.SDK compatible with the add-in's own.</item>
+    /// </list>
+    /// Nothing is downloaded while it is set and runs.
     /// </summary>
     public string? PlatformRoot { get; init; }
 
@@ -39,6 +46,52 @@ internal sealed record AddinSettings
     public static bool AddinIsPrerelease =>
         typeof(AddinSettings).Assembly.GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion
             .Split('+')[0].Contains('-') ?? false;
+
+    /// <summary>
+    /// The version of the RDCore.SDK package this build of the add-in is built with, as the build records it: the installer
+    /// offers only a platform built with a compatible one.
+    /// </summary>
+    public static PlatformVersion SdkVersion => PlatformVersion.Parse(
+        typeof(AddinSettings).Assembly.GetCustomAttributes<AssemblyMetadataAttribute>()
+            .Single(attribute => attribute.Key == "RDCoreSdkVersion").Value!);
+
+    /// <summary>
+    /// Writes <paramref name="platformRoot"/> as the <c>platformRoot</c> of the settings at <paramref name="path"/>, or takes it out
+    /// for null, and keeps everything else the file holds. A file that can't be read as settings is written afresh.
+    /// </summary>
+    /// <param name="path">The settings file, as <see cref="DefaultPath"/>.</param>
+    /// <param name="platformRoot">The platform root the user chose, or null for none.</param>
+    /// <exception cref="IOException">The file can't be written.</exception>
+    /// <exception cref="UnauthorizedAccessException">The file can't be written.</exception>
+    public static void SavePlatformRoot(string path, string? platformRoot)
+    {
+        JsonObject settings;
+        try
+        {
+            settings = File.Exists(path) ? JsonNode.Parse(File.ReadAllText(path)) as JsonObject ?? [] : [];
+        }
+        catch (JsonException)
+        {
+            settings = [];
+        }
+
+        // Whatever the spelling it was read with, it is written once.
+        foreach (var name in settings.Select(property => property.Key)
+            .Where(key => string.Equals(key, "platformRoot", StringComparison.OrdinalIgnoreCase)).ToList())
+        {
+            settings.Remove(name);
+        }
+
+        if (platformRoot is not null)
+        {
+            settings["platformRoot"] = platformRoot;
+        }
+
+        Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(path))!);
+        var temporary = path + ".tmp";
+        File.WriteAllText(temporary, settings.ToJsonString(new JsonSerializerOptions { WriteIndented = true }));
+        File.Move(temporary, path, overwrite: true);
+    }
 
     /// <summary>The settings at <paramref name="path"/>; the defaults when there are none, or they can't be read.</summary>
     public static AddinSettings Load(string path)

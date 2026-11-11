@@ -3,6 +3,7 @@ using Avalonia.Controls;
 using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Layout;
 using Avalonia.Media;
+using Avalonia.Platform.Storage;
 using Avalonia.Threading;
 using RDCore.HexIDE.Resources;
 using RDCore.PlatformInstaller;
@@ -13,23 +14,60 @@ namespace RDCore.HexIDE.Platform;
 internal sealed class AvaloniaPrompts : IUserPrompts
 {
     /// <inheritdoc/>
-    public Task<bool> ConfirmDownloadAsync(PlatformRelease release, string target) => Dispatcher.UIThread.InvokeAsync(async () =>
-    {
-        var agreed = false;
-        var window = Dialog(Strings.DownloadQuestion(release.Version.Text, Strings.Megabytes(release.ArchiveSize / 1_000_000d),
-            "github.com/rubberduck-vba/RDCore", target));
-        var download = new Button { Content = Strings.DownloadYes, IsDefault = true };
-        var later = new Button { Content = Strings.DownloadNo, IsCancel = true };
-        download.Click += (_, _) =>
+    public Task<PlatformAnswer> ConfirmDownloadAsync(PlatformRelease release, string target, bool canLocate) =>
+        Dispatcher.UIThread.InvokeAsync(() =>
         {
-            agreed = true;
-            window.Close();
-        };
-        later.Click += (_, _) => window.Close();
-        AddButtons(window, download, later);
-        await ShowAsync(window);
-        return agreed;
+            var question = Strings.DownloadQuestion(release.Version.Text, Strings.Megabytes(release.ArchiveSize / 1_000_000d),
+                "github.com/rubberduck-vba/RDCore", target);
+            return canLocate
+                ? AskAsync(question + Environment.NewLine + Environment.NewLine + Strings.LocateInstead,
+                    (Strings.DownloadYes, PlatformAnswer.Install), (Strings.Locate, PlatformAnswer.Locate))
+                : AskAsync(question, (Strings.DownloadYes, PlatformAnswer.Install));
+        });
+
+    /// <inheritdoc/>
+    public Task<PlatformAnswer> ChooseFoundAsync(PlatformFolder found, string target) => Dispatcher.UIThread.InvokeAsync(() =>
+        AskAsync(Strings.FoundQuestion(found.Version, found.Root, target),
+            (Strings.UseFound, PlatformAnswer.UseFound), (Strings.InstallInstead, PlatformAnswer.Install), (Strings.Locate, PlatformAnswer.Locate)));
+
+    /// <inheritdoc/>
+    public Task<string?> PickFolderAsync() => Dispatcher.UIThread.InvokeAsync(async () =>
+    {
+        if (MainWindow is not { } owner)
+        {
+            return null;
+        }
+
+        var picked = await owner.StorageProvider.OpenFolderPickerAsync(new FolderPickerOpenOptions
+        {
+            Title = Strings.LocateTitle,
+            AllowMultiple = false,
+        });
+        return picked.Count == 1 ? picked[0].TryGetLocalPath() : null;
     });
+
+    // The question, with a button for each answer, the first the default, and "Not now" last, which closing it answers too.
+    private static async Task<PlatformAnswer> AskAsync(string question, params (string Label, PlatformAnswer Answer)[] answers)
+    {
+        var answer = PlatformAnswer.NotNow;
+        var window = Dialog(question);
+        var buttons = answers.Select((choice, index) =>
+        {
+            var button = new Button { Content = choice.Label, IsDefault = index == 0 };
+            button.Click += (_, _) =>
+            {
+                answer = choice.Answer;
+                window.Close();
+            };
+            return button;
+        }).ToList();
+        var later = new Button { Content = Strings.DownloadNo, IsCancel = true };
+        later.Click += (_, _) => window.Close();
+        buttons.Add(later);
+        AddButtons(window, [.. buttons]);
+        await ShowAsync(window);
+        return answer;
+    }
 
     /// <inheritdoc/>
     public Task TellAsync(string message) => Dispatcher.UIThread.InvokeAsync(async () =>

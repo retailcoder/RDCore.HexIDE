@@ -103,4 +103,31 @@ internal static class Strings
     public static string Megabytes(double megabytes) => Format(nameof(Megabytes), megabytes);
 
     public static string DownloadDeclined => Get(nameof(DownloadDeclined));
+
+    /// <summary>{0}: the version; {1}: its folder; {2}: where an installation goes.</summary>
+    public static string FoundQuestion(string version, string folder, string target) => Format(nameof(FoundQuestion), version, folder, target);
+
+    public static string LocateInstead => Get(nameof(LocateInstead));
+
+    public static string UseFound => Get(nameof(UseFound));
+
+    public static string InstallInstead => Get(nameof(InstallInstead));
+
+    public static string Locate => Get(nameof(Locate));
+
+    public static string LocateTitle => Get(nameof(LocateTitle));
+
+    public static string NotAPlatformFolder => Get(nameof(NotAPlatformFolder));
+
+    public static string SdkUnknown => Get(nameof(SdkUnknown));
+
+    /// <summary>{0}: the RDCore.SDK version it was built with; {1}: the versions the add-in works with, as <c>0.1.x</c>.</summary>
+    public static string SdkIncompatible(string built, string range) => Format(nameof(SdkIncompatible), built, range);
+
+    /// <summary>{0}: the runtime identifier it was built for; {1}: the machine's.</summary>
+    public static string OtherSystem(string built, string machine) => Format(nameof(OtherSystem), built, machine);
+
+    /// <summary>{0}: the version; {1}: its folder; {2}: why, after a colon.</summary>
+    public static string ChosenPlatformUnsuitable(string version, string folder, string reason) =>
+        Format(nameof(ChosenPlatformUnsuitable), version, folder, reason);
 }

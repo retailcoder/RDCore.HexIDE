@@ -51,8 +51,10 @@ public sealed class RDCoreDebugLaunchTests : IDisposable
         {
             Root = Path.Combine(folder, "installed"),
             Channel = ReleaseChannel.Preview,
+            RuntimeIdentifier = "win-x64",
         }, new HttpClient(github ?? new FakeGitHub()));
-        return new PlatformSource(new AddinSettings { PlatformRoot = platformRoot }, installer, prompts);
+        return new PlatformSource(new AddinSettings { PlatformRoot = platformRoot }, Path.Combine(folder, "settings.json"), installer,
+            prompts, new FakeMachine());
     }
 
     private static T InCulture<T>(string culture, Func<T> action)

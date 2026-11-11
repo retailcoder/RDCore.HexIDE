@@ -18,7 +18,7 @@
   <data name="DownloadQuestion" xml:space="preserve">
     <value>This project is an RDCore project, and RDCore's platform isn't on this machine yet.
 
-Download RDCore {0} now? It is about {1}, from {2}, and goes in {3}.</value>
+Download RDCore {0} now? It is about {1}, from {2}, and goes in {3}. Its rdc command is added to your PATH.</value>
   </data>
   <data name="DownloadYes" xml:space="preserve">
     <value>Download</value>
@@ -127,5 +127,42 @@ Download RDCore {0} now? It is about {1}, from {2}, and goes in {3}.</value>
   </data>
   <data name="DownloadDeclined" xml:space="preserve">
     <value>RDCore's platform wasn't downloaded, so the project can't run.</value>
+  </data>
+  <data name="LocateInstead" xml:space="preserve">
+    <value>If RDCore is already on this machine, you can locate it instead.</value>
+  </data>
+  <data name="FoundQuestion" xml:space="preserve">
+    <value>RDCore {0} is already on this machine, in {1}.
+
+Use it? The add-in doesn't update it, and tells you if it stops working with the add-in. Or install RDCore in {2}, where the add-in keeps it up to date and adds its rdc command to your PATH.</value>
+  </data>
+  <data name="UseFound" xml:space="preserve">
+    <value>Use it</value>
+  </data>
+  <data name="InstallInstead" xml:space="preserve">
+    <value>Install</value>
+  </data>
+  <data name="Locate" xml:space="preserve">
+    <value>Locate…</value>
+  </data>
+  <data name="LocateTitle" xml:space="preserve">
+    <value>The folder of an RDCore platform, which holds rdcore.json</value>
+  </data>
+  <data name="NotAPlatformFolder" xml:space="preserve">
+    <value>it isn't an RDCore platform: it has no rdcore.json, or not the language server its rdcore.json names.</value>
+  </data>
+  <data name="SdkUnknown" xml:space="preserve">
+    <value>it doesn't say which RDCore.SDK it was built with: it has no release.json, or its release.json has no sdk.</value>
+  </data>
+  <data name="SdkIncompatible" xml:space="preserve">
+    <value>it was built with RDCore.SDK {0}, and this version of the add-in works with RDCore.SDK {1}.</value>
+  </data>
+  <data name="OtherSystem" xml:space="preserve">
+    <value>it was built for {0}, and this machine is {1}.</value>
+  </data>
+  <data name="ChosenPlatformUnsuitable" xml:space="preserve">
+    <value>The RDCore {0} platform in {1} can't be used with this version of the add-in: {2}
+
+The add-in looks for another RDCore, or offers to install one.</value>
   </data>
 </root>

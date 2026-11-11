@@ -1,3 +1,5 @@
+using System.Formats.Tar;
+
 namespace RDCore.PlatformInstaller.Tests;
 
 [TestClass]
@@ -21,7 +23,11 @@ public sealed class PlatformInstallerTests : IDisposable
 
     private PlatformInstaller Installer(FakeGitHub github, ReleaseChannel channel = ReleaseChannel.Stable,
         Func<PlatformInstallerOptions, PlatformInstallerOptions>? adjust = null) =>
-        new((adjust ?? (options => options))(new PlatformInstallerOptions { Root = root, Channel = channel }), new HttpClient(github));
+        new((adjust ?? (options => options))(new PlatformInstallerOptions { Root = root, Channel = channel, RuntimeIdentifier = "win-x64" }),
+            new HttpClient(github));
+
+    private PlatformInstaller LinuxInstaller(FakeGitHub github, Func<PlatformInstallerOptions, PlatformInstallerOptions>? adjust = null) =>
+        Installer(github, adjust: options => (adjust ?? (options => options))(options with { RuntimeIdentifier = "linux-x64" }));
 
     private async Task<InstalledPlatform> InstallLatest(PlatformInstaller installer, IProgress<InstallProgress>? progress = null)
     {
@@ -177,6 +183,73 @@ public sealed class PlatformInstallerTests : IDisposable
         await Refused(Installer(new FakeGitHub().Release("v0.1.0"), adjust: options => options with { MaxExtractedBytes = 16 }),
             InstallFailure.TooLarge);
         Assert.IsFalse(Directory.Exists(Path.Combine(root, "versions", "0.1.0.partial")));
+    }
+
+    [TestMethod]
+    public async Task A_tar_gz_platform_is_deployed_and_its_language_server_stays_executable()
+    {
+        var installed = await InstallLatest(LinuxInstaller(new FakeGitHub().Release("v0.1.0", rid: "linux-x64", tarGz: true)));
+
+        Assert.AreEqual("0.1.0", installed.Version.Text);
+        var server = Path.Combine(installed.Root, "RDCore.LanguageServer", "RDCore.LanguageServer");
+        Assert.AreEqual("not really a server", File.ReadAllText(server));
+        Assert.IsTrue(NothingLeftOver());
+        if (!OperatingSystem.IsWindows())
+        {
+            Assert.AreEqual((UnixFileMode)0x1ED, File.GetUnixFileMode(server), "0755");
+            Assert.AreEqual((UnixFileMode)0x1A4, File.GetUnixFileMode(installed.Manifest), "0644");
+            Assert.AreEqual((UnixFileMode)0x1ED, File.GetUnixFileMode(Path.GetDirectoryName(server)!), "0755");
+        }
+    }
+
+    [TestMethod]
+    [DataRow(TarEntryType.SymbolicLink, "/etc/passwd")]
+    [DataRow(TarEntryType.SymbolicLink, "../rdcore.json")]
+    [DataRow(TarEntryType.HardLink, "rdcore.json")]
+    public async Task A_tar_gz_with_a_link_is_refused_before_anything_is_unpacked(TarEntryType type, string linkName)
+    {
+        var archive = FakeGitHub.TarGzOf(FakeGitHub.Platform("0.1.0", ""),
+            writer => writer.WriteEntry(new UstarTarEntry(type, "RDCore.LanguageServer/link") { LinkName = linkName }));
+
+        await Refused(LinuxInstaller(new FakeGitHub().Release("v0.1.0", rid: "linux-x64", tarGz: true, archive: archive)),
+            InstallFailure.NotAPlatform);
+
+        Assert.IsFalse(Directory.Exists(Path.Combine(root, "versions", "0.1.0.partial")));
+    }
+
+    [TestMethod]
+    [DataRow("../escaped.txt")]
+    [DataRow("RDCore.LanguageServer/../../escaped.txt")]
+    [DataRow("/tmp/escaped.txt")]
+    public async Task A_tar_gz_with_an_entry_that_would_land_outside_the_platform_is_refused_and_writes_nothing_there(string name)
+    {
+        var entries = new Dictionary<string, string>(FakeGitHub.Platform("0.1.0", "")) { [name] = "outside" };
+
+        await Refused(LinuxInstaller(new FakeGitHub().Release("v0.1.0", rid: "linux-x64", tarGz: true, entries: entries)),
+            InstallFailure.NotAPlatform);
+
+        Assert.IsFalse(File.Exists(Path.Combine(root, "versions", "escaped.txt")));
+        Assert.IsFalse(Directory.Exists(Path.Combine(root, "versions", "0.1.0.partial")));
+    }
+
+    [TestMethod]
+    public async Task A_tar_gz_with_too_many_entries_or_too_much_to_unpack_is_refused_before_it_is_unpacked()
+    {
+        // Its entries: rdcore.json, release.json, the language server and its folder.
+        await Refused(LinuxInstaller(new FakeGitHub().Release("v0.1.0", rid: "linux-x64", tarGz: true),
+            options => options with { MaxEntries = 3 }), InstallFailure.TooLarge);
+        await Refused(LinuxInstaller(new FakeGitHub().Release("v0.1.0", rid: "linux-x64", tarGz: true),
+            options => options with { MaxExtractedBytes = 16 }), InstallFailure.TooLarge);
+        Assert.IsFalse(Directory.Exists(Path.Combine(root, "versions", "0.1.0.partial")));
+    }
+
+    [TestMethod]
+    public async Task A_tar_gz_that_isn_t_one_is_refused()
+    {
+        var archive = System.Text.Encoding.UTF8.GetBytes("not a tar.gz at all");
+
+        await Refused(LinuxInstaller(new FakeGitHub().Release("v0.1.0", rid: "linux-x64", tarGz: true, archive: archive)),
+            InstallFailure.NotAPlatform);
     }
 
     [TestMethod]

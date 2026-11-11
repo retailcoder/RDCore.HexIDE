@@ -28,13 +28,17 @@ public sealed class DevelopmentFeedTests : IDisposable
     private string Feed => Path.Combine(folder, "feed");
 
     // A feed of one release, laid out as tools/New-DevelopmentFeed.ps1 writes one.
-    private void Publish(string version, string? digest = null)
+    private void Publish(string version, string? digest = null, string? sdk = null)
     {
         var zipName = $"rdcore-{version}-win-x64.zip";
+        var infoName = $"rdcore-{version}-win-x64.release.json";
         var download = $"rubberduck-vba/RDCore/releases/download/v{version}";
         var zip = FakeGitHub.ZipOf(FakeGitHub.Platform(version));
         Write($"github.com/{download}/{zipName}", zip);
-        var sums = System.Text.Encoding.UTF8.GetBytes($"{digest ?? Convert.ToHexStringLower(SHA256.HashData(zip))}  {zipName}\n");
+        var info = System.Text.Encoding.UTF8.GetBytes(FakeGitHub.ReleaseInfo(sdk ?? AddinSettings.SdkVersion.Text));
+        Write($"github.com/{download}/{infoName}", info);
+        var sums = System.Text.Encoding.UTF8.GetBytes($"{digest ?? Convert.ToHexStringLower(SHA256.HashData(zip))}  {zipName}\n"
+            + $"{Convert.ToHexStringLower(SHA256.HashData(info))}  {infoName}\n");
         Write($"github.com/{download}/SHA256SUMS", sums);
         Write("api.github.com/repos/rubberduck-vba/RDCore/releases", JsonSerializer.SerializeToUtf8Bytes(new[]
         {
@@ -47,6 +51,7 @@ public sealed class DevelopmentFeedTests : IDisposable
                 {
                     new { name = zipName, browser_download_url = $"https://github.com/{download}/{zipName}", size = zip.Length },
                     new { name = "SHA256SUMS", browser_download_url = $"https://github.com/{download}/SHA256SUMS", size = sums.Length },
+                    new { name = infoName, browser_download_url = $"https://github.com/{download}/{infoName}", size = info.Length },
                 },
             },
         }));
@@ -59,9 +64,25 @@ public sealed class DevelopmentFeedTests : IDisposable
         }
     }
 
+    // As the add-in makes its own, with the RDCore.SDK version it is built with.
     private PlatformInstaller.PlatformInstaller Installer() => new(
-        new PlatformInstallerOptions { Root = Path.Combine(folder, "installed"), Channel = ReleaseChannel.Preview },
+        new PlatformInstallerOptions
+        {
+            Root = Path.Combine(folder, "installed"),
+            Channel = ReleaseChannel.Preview,
+            RuntimeIdentifier = "win-x64",
+            SdkVersion = AddinSettings.SdkVersion,
+        },
         new HttpClient(new DevelopmentFeed(Feed)));
+
+    [TestMethod]
+    public async Task A_release_in_the_folder_built_with_an_RDCore_SDK_the_add_in_isn_t_compatible_with_is_not_offered()
+    {
+        var sdk = AddinSettings.SdkVersion.Core;
+        Publish("0.1.0-dev.1", sdk: sdk.Major == 0 ? $"0.{sdk.Minor + 1}.0" : $"{sdk.Major + 1}.0.0");
+
+        Assert.IsNull(await Installer().Feed.FindLatestAsync(TestContext.CancellationToken));
+    }
 
     [TestMethod]
     public async Task A_release_in_the_folder_is_found_downloaded_checked_and_installed_as_a_published_one_is()

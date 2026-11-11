@@ -1,4 +1,6 @@
+using System.Reflection;
 using RDCore.PlatformInstaller;
+using RDCore.SDK.Client;
 
 namespace RDCore.HexIDE.Tests;
 
@@ -15,6 +17,14 @@ public sealed class AddinSettingsTests : IDisposable
         Assert.IsTrue(AddinSettings.AddinIsPrerelease, "this build is 0.1.0-alpha");
         Assert.AreEqual(ReleaseChannel.Preview, new AddinSettings().EffectiveChannel);
         Assert.AreEqual(ReleaseChannel.Stable, new AddinSettings { Channel = ReleaseChannel.Stable }.EffectiveChannel);
+    }
+
+    [TestMethod]
+    public void The_RDCore_SDK_version_the_build_records_is_the_one_the_add_in_runs_with()
+    {
+        var loaded = typeof(RDCorePlatformClient).Assembly.GetCustomAttribute<AssemblyInformationalVersionAttribute>()!.InformationalVersion;
+
+        Assert.AreEqual(PlatformVersion.Parse(loaded), AddinSettings.SdkVersion);
     }
 
     [TestMethod]

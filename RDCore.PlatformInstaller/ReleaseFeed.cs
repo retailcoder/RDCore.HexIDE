@@ -1,4 +1,6 @@
 using System.Net.Http.Headers;
+using System.Security.Cryptography;
+using System.Text;
 using System.Text.Json;
 
 namespace RDCore.PlatformInstaller;
@@ -7,32 +9,129 @@ namespace RDCore.PlatformInstaller;
 /// The platform's published releases, read from GitHub's releases API without authentication. A draft release is never
 /// offered: a tag's release is a draft until a maintainer publishes it, and an anonymous caller doesn't see it before then.
 /// </summary>
+/// <param name="http">Reads the releases, and the <c>release.json</c> and <c>SHA256SUMS</c> of each one it might offer.</param>
+/// <param name="options">The repository, the channel, the runtime identifier, the RDCore.SDK version and the bounds.</param>
 public sealed class ReleaseFeed(HttpClient http, PlatformInstallerOptions options)
 {
     internal const string ChecksumsAsset = "SHA256SUMS";
 
     /// <summary>
     /// The newest release the channel offers that has a platform for the runtime identifier, or null when none has. The stable
-    /// channel offers no release whose version is a prerelease's, whatever the release says it is.
+    /// channel offers no release whose version is a prerelease's, whatever the release says it is. With
+    /// <see cref="PlatformInstallerOptions.SdkVersion"/>, a release is offered only when its platform was built with a
+    /// compatible RDCore.SDK: a newer one that wasn't is passed over for the newest that was.
     /// </summary>
+    /// <param name="cancellationToken">Ends the search.</param>
     /// <exception cref="HttpRequestException">The releases couldn't be reached.</exception>
     /// <exception cref="PlatformInstallException">What GitHub answered isn't a list of releases.</exception>
-    public async Task<PlatformRelease?> FindLatestAsync(CancellationToken cancellationToken) =>
-        (await ReadAsync(cancellationToken).ConfigureAwait(false))
+    public async Task<PlatformRelease?> FindLatestAsync(CancellationToken cancellationToken)
+    {
+        var offered = (await ReadAsync(cancellationToken).ConfigureAwait(false))
             .Where(release => options.Channel == ReleaseChannel.Preview || !(release.Prerelease || release.Release.Version.IsPrerelease))
             .Select(release => release.Release)
-            .MaxBy(release => release.Version);
+            .OrderByDescending(release => release.Version);
+        foreach (var release in offered)
+        {
+            if (options.SdkVersion is not { } sdk || await IsBuiltWithAsync(release, sdk, cancellationToken).ConfigureAwait(false))
+            {
+                return release;
+            }
+        }
+        return null;
+    }
 
     /// <summary>
     /// The published release of <paramref name="version"/> for the runtime identifier, whatever the channel, or null when there
-    /// is none: it was taken down, or never had a platform for this machine.
+    /// is none: it was taken down, or never had a platform for this machine. It is found whatever RDCore.SDK it was built with,
+    /// as a version deployed already is the one asked for.
     /// </summary>
+    /// <param name="version">The version.</param>
+    /// <param name="cancellationToken">Ends the search.</param>
     /// <exception cref="HttpRequestException">The releases couldn't be reached.</exception>
     /// <exception cref="PlatformInstallException">What GitHub answered isn't a list of releases.</exception>
     public async Task<PlatformRelease?> FindAsync(PlatformVersion version, CancellationToken cancellationToken) =>
         (await ReadAsync(cancellationToken).ConfigureAwait(false))
             .Select(release => release.Release)
             .FirstOrDefault(release => release.Version.Equals(version));
+
+    /// <summary>
+    /// Whether a client built with RDCore.SDK <paramref name="client"/> works with a platform built with <paramref name="built"/>:
+    /// the same major and minor versions before 1.0, and the same major version from 1.0.
+    /// </summary>
+    /// <param name="client">The version the client was built with.</param>
+    /// <param name="built">The version the platform was built with.</param>
+    internal static bool IsCompatible(PlatformVersion client, PlatformVersion built) =>
+        client.Core.Major == built.Core.Major && (client.Core.Major > 0 || client.Core.Minor == built.Core.Minor);
+
+    /// <summary>
+    /// The RDCore.SDK version a <c>release.json</c> says its platform was built with, from its
+    /// <c>"sdk": { "package": "RDCore.SDK", "version": "..." }</c>, or null when it says none or isn't JSON.
+    /// </summary>
+    /// <param name="releaseInfo">The <c>release.json</c>'s content.</param>
+    internal static PlatformVersion? SdkOf(byte[] releaseInfo)
+    {
+        try
+        {
+            using var document = JsonDocument.Parse(releaseInfo);
+            var root = document.RootElement;
+            return root.ValueKind == JsonValueKind.Object
+                && root.TryGetProperty("sdk", out var sdk) && sdk.ValueKind == JsonValueKind.Object
+                && sdk.TryGetProperty("package", out var package) && package.ValueKind == JsonValueKind.String
+                && package.GetString() == "RDCore.SDK"
+                && sdk.TryGetProperty("version", out var version) && version.ValueKind == JsonValueKind.String
+                && PlatformVersion.TryParse(version.GetString(), out var parsed)
+                ? parsed
+                : null;
+        }
+        catch (JsonException)
+        {
+            return null;
+        }
+    }
+
+    // Whether the release's release.json says its platform was built with an RDCore.SDK compatible with the client's. One the
+    // release doesn't have, that isn't there, is bigger than one should be, or doesn't match the release's SHA256SUMS says
+    // nothing the client can rely on, and its release is not offered.
+    private async Task<bool> IsBuiltWithAsync(PlatformRelease release, PlatformVersion sdk, CancellationToken cancellationToken)
+    {
+        if (release.ReleaseInfo is not { } url)
+        {
+            return false;
+        }
+
+        try
+        {
+            if (await GetAsync(release.Checksums, options.MaxChecksumsBytes, cancellationToken).ConfigureAwait(false) is not { } sums
+                || await GetAsync(url, options.MaxReleaseInfoBytes, cancellationToken).ConfigureAwait(false) is not { } info)
+            {
+                return false;
+            }
+
+            var expected = Sha256Sums.Find(Encoding.UTF8.GetString(sums), Path.GetFileName(url.AbsolutePath));
+            return expected is not null && Convert.ToHexStringLower(SHA256.HashData(info)) == expected
+                && SdkOf(info) is { } built && IsCompatible(sdk, built);
+        }
+        catch (PlatformInstallException)
+        {
+            // Bigger than it should be.
+            return false;
+        }
+    }
+
+    // The content at the url, bounded, or null when it isn't there.
+    private async Task<byte[]?> GetAsync(Uri url, long limit, CancellationToken cancellationToken)
+    {
+        using var response = await http.GetAsync(url, HttpCompletionOption.ResponseHeadersRead, cancellationToken).ConfigureAwait(false);
+        if (!response.IsSuccessStatusCode)
+        {
+            return null;
+        }
+
+        return await BoundedContent.ReadAsync(response, limit,
+            size => new PlatformInstallException(InstallFailure.TooLarge,
+                $"{Path.GetFileName(url.AbsolutePath)} is bigger than it should be: {size} bytes at least, where {limit} is the most."),
+            cancellationToken).ConfigureAwait(false);
+    }
 
     private async Task<IReadOnlyList<(PlatformRelease Release, bool Prerelease)>> ReadAsync(CancellationToken cancellationToken)
     {
@@ -85,10 +184,14 @@ public sealed class ReleaseFeed(HttpClient http, PlatformInstallerOptions option
             return null;
         }
 
-        // The zip is named by the platform manifest's version and the runtime identifier it was built for.
-        var archiveSuffix = $"-{options.RuntimeIdentifier}.zip";
+        // The archive is named by the platform manifest's version and the runtime identifier it was built for: a zip for
+        // Windows, a tar.gz for Linux and macOS. Its release.json beside it is named as it is.
+        var zipSuffix = $"-{options.RuntimeIdentifier}.zip";
+        var tarGzSuffix = $"-{options.RuntimeIdentifier}.tar.gz";
+        var releaseInfoSuffix = $"-{options.RuntimeIdentifier}.release.json";
         (Uri Url, long Size)? archive = null;
         Uri? checksums = null;
+        Uri? releaseInfo = null;
         foreach (var asset in assets.EnumerateArray())
         {
             var name = asset.GetProperty("name").GetString() ?? "";
@@ -101,18 +204,26 @@ public sealed class ReleaseFeed(HttpClient http, PlatformInstallerOptions option
             {
                 checksums = url;
             }
-            else if (name.StartsWith("rdcore-", StringComparison.Ordinal) && name.EndsWith(archiveSuffix, StringComparison.Ordinal))
+            else if (name.StartsWith("rdcore-", StringComparison.Ordinal)
+                && (name.EndsWith(zipSuffix, StringComparison.Ordinal) || name.EndsWith(tarGzSuffix, StringComparison.Ordinal)))
             {
                 archive = (url, asset.TryGetProperty("size", out var size) ? size.GetInt64() : 0);
             }
+            else if (name.StartsWith("rdcore-", StringComparison.Ordinal) && name.EndsWith(releaseInfoSuffix, StringComparison.Ordinal))
+            {
+                releaseInfo = url;
+            }
         }
 
-        if (archive is not { } zip || checksums is null || !Trusted(zip.Url) || !Trusted(checksums))
+        if (archive is not { } platform || checksums is null || !Trusted(platform.Url) || !Trusted(checksums))
         {
             return null;
         }
 
-        return (new PlatformRelease(version, zip.Url, zip.Size, checksums), prerelease);
+        return (new PlatformRelease(version, platform.Url, platform.Size, checksums)
+        {
+            ReleaseInfo = releaseInfo is not null && Trusted(releaseInfo) ? releaseInfo : null,
+        }, prerelease);
     }
 
     private bool Trusted(Uri url) =>

@@ -3,8 +3,112 @@ namespace RDCore.PlatformInstaller.Tests;
 [TestClass]
 public class ReleaseFeedTests
 {
-    private static ReleaseFeed Feed(FakeGitHub github, ReleaseChannel channel = ReleaseChannel.Stable) =>
-        new(new HttpClient(github), new PlatformInstallerOptions { Root = Path.GetTempPath(), Channel = channel });
+    private static ReleaseFeed Feed(FakeGitHub github, ReleaseChannel channel = ReleaseChannel.Stable, string rid = "win-x64",
+        string? sdk = null, long maxReleaseInfoBytes = 4L << 20) =>
+        new(new HttpClient(github), new PlatformInstallerOptions
+        {
+            Root = Path.GetTempPath(),
+            Channel = channel,
+            RuntimeIdentifier = rid,
+            SdkVersion = sdk is null ? null : PlatformVersion.Parse(sdk),
+            MaxReleaseInfoBytes = maxReleaseInfoBytes,
+        });
+
+    [TestMethod]
+    public async Task A_client_is_offered_the_newest_release_built_with_a_compatible_RDCore_SDK_and_never_a_newer_one_built_with_another()
+    {
+        var github = new FakeGitHub()
+            .Release("v0.1.0", sdk: "0.1.0-alpha")
+            .Release("v0.1.1", sdk: "0.1.1-alpha")
+            .Release("v0.2.0", sdk: "0.2.0-alpha");
+
+        var latest = await Feed(github, sdk: "0.1.1-alpha").FindLatestAsync(TestContext.CancellationToken);
+
+        Assert.AreEqual("0.1.1", latest?.Version.Text);
+        Assert.IsFalse(github.Requests.Any(request => request.AbsolutePath.EndsWith(".zip")), "no archive is downloaded to choose");
+    }
+
+    [TestMethod]
+    public async Task No_release_is_offered_when_none_was_built_with_a_compatible_RDCore_SDK()
+    {
+        var github = new FakeGitHub().Release("v0.2.0", sdk: "0.2.0-alpha").Release("v1.0.0", sdk: "1.0.0");
+
+        Assert.IsNull(await Feed(github, sdk: "0.1.1-alpha").FindLatestAsync(TestContext.CancellationToken));
+    }
+
+    [TestMethod]
+    public async Task A_release_whose_release_json_says_no_RDCore_SDK_is_not_offered()
+    {
+        var github = new FakeGitHub().Release("v0.1.0").Release("v0.1.1", sdk: null);
+
+        Assert.AreEqual("0.1.0", (await Feed(github, sdk: FakeGitHub.Sdk).FindLatestAsync(TestContext.CancellationToken))?.Version.Text);
+    }
+
+    [TestMethod]
+    public async Task A_release_without_a_release_json_is_not_offered()
+    {
+        var github = new FakeGitHub().Release("v0.1.0").Release("v0.1.1", releaseInfo: false);
+
+        Assert.AreEqual("0.1.0", (await Feed(github, sdk: FakeGitHub.Sdk).FindLatestAsync(TestContext.CancellationToken))?.Version.Text);
+    }
+
+    [TestMethod]
+    public async Task A_release_whose_release_json_doesn_t_match_its_checksum_is_not_offered()
+    {
+        var github = new FakeGitHub().Release("v0.1.0").Release("v0.1.1", releaseInfoDigest: new string('0', 64));
+
+        Assert.AreEqual("0.1.0", (await Feed(github, sdk: FakeGitHub.Sdk).FindLatestAsync(TestContext.CancellationToken))?.Version.Text);
+    }
+
+    [TestMethod]
+    [DataRow(false)]
+    [DataRow(true)]
+    public async Task A_release_whose_release_json_is_bigger_than_one_should_be_is_not_offered(bool unsized)
+    {
+        var github = new FakeGitHub { Unsized = unsized }.Release("v0.1.0");
+
+        Assert.IsNull(await Feed(github, sdk: FakeGitHub.Sdk, maxReleaseInfoBytes: 16).FindLatestAsync(TestContext.CancellationToken));
+    }
+
+    [TestMethod]
+    public async Task A_version_is_found_whatever_RDCore_SDK_it_was_built_with()
+    {
+        var github = new FakeGitHub().Release("v0.2.0", sdk: "0.2.0-alpha");
+
+        Assert.AreEqual("0.2.0",
+            (await Feed(github, sdk: "0.1.1-alpha").FindAsync(PlatformVersion.Parse("0.2.0"), TestContext.CancellationToken))?.Version.Text);
+    }
+
+    [TestMethod]
+    [DataRow("0.1.1-alpha", "0.1.0-alpha", true)]
+    [DataRow("0.1.1-alpha", "0.1.7", true)]
+    [DataRow("0.1.1-alpha", "0.2.0-alpha", false)]
+    [DataRow("0.2.0", "0.1.9", false)]
+    [DataRow("0.1.1", "1.1.0", false)]
+    [DataRow("1.0.0", "1.4.2", true)]
+    [DataRow("1.4.2", "1.0.0-rc.1", true)]
+    [DataRow("1.4.2", "2.0.0", false)]
+    [DataRow("2.0.0", "1.9.0", false)]
+    public void RDCore_SDK_versions_are_compatible_with_the_same_major_and_minor_before_1_0_and_the_same_major_from_1_0(
+        string client, string built, bool compatible)
+    {
+        Assert.AreEqual(compatible, ReleaseFeed.IsCompatible(PlatformVersion.Parse(client), PlatformVersion.Parse(built)));
+    }
+
+    [TestMethod]
+    [DataRow("""{ "sdk": { "package": "RDCore.SDK", "version": "0.1.1-alpha" } }""", "0.1.1-alpha")]
+    [DataRow("""{ "sdk": { "package": "RDCore.SDK", "version": "0.1.1-alpha+db05a807" } }""", "0.1.1-alpha")]
+    [DataRow("""{ "sdk": { "package": "Another.SDK", "version": "0.1.1-alpha" } }""", null)]
+    [DataRow("""{ "sdk": { "package": "RDCore.SDK" } }""", null)]
+    [DataRow("""{ "sdk": { "package": "RDCore.SDK", "version": "not a version" } }""", null)]
+    [DataRow("""{ "sdk": "0.1.1-alpha" }""", null)]
+    [DataRow("""{ "schema": 1 }""", null)]
+    [DataRow("""[ 1, 2 ]""", null)]
+    [DataRow("""not json""", null)]
+    public void The_RDCore_SDK_a_release_json_names_is_read_from_its_sdk_and_nothing_else(string json, string? expected)
+    {
+        Assert.AreEqual(expected, ReleaseFeed.SdkOf(System.Text.Encoding.UTF8.GetBytes(json))?.Text);
+    }
 
     private static FakeGitHub Releases() => new FakeGitHub()
         .Release("v0.1.0")
@@ -37,6 +141,29 @@ public class ReleaseFeedTests
         var latest = await Feed(github).FindLatestAsync(TestContext.CancellationToken);
 
         Assert.AreEqual("0.1.0", latest?.Version.Text);
+    }
+
+    [TestMethod]
+    [DataRow("linux-x64")]
+    [DataRow("osx-x64")]
+    [DataRow("osx-arm64")]
+    public async Task Off_Windows_a_release_s_tar_gz_for_the_runtime_identifier_is_offered_and_another_s_platform_is_not(string rid)
+    {
+        var github = new FakeGitHub().Release("v0.1.0", rid: rid, tarGz: true).Release("v0.2.0").Release("v0.2.1", rid: "linux-arm64", tarGz: true);
+
+        var latest = await Feed(github, rid: rid).FindLatestAsync(TestContext.CancellationToken);
+
+        Assert.AreEqual("0.1.0", latest?.Version.Text);
+        Assert.AreEqual($"rdcore-0.1.0-{rid}.tar.gz", latest?.ArchiveName);
+    }
+
+    [TestMethod]
+    public void The_runtime_identifier_is_the_machine_s_own_unless_one_is_given()
+    {
+        var system = OperatingSystem.IsWindows() ? "win" : OperatingSystem.IsMacOS() ? "osx" : "linux";
+        var architecture = System.Runtime.InteropServices.RuntimeInformation.ProcessArchitecture.ToString().ToLowerInvariant();
+
+        Assert.AreEqual($"{system}-{architecture}", new PlatformInstallerOptions { Root = Path.GetTempPath() }.RuntimeIdentifier);
     }
 
     [TestMethod]

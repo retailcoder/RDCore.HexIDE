@@ -11,7 +11,8 @@ permissions:
 jobs:
  build-and-test:
   # HexIDE's add-in contract and its UI (Avalonia) are cross-platform, so everything builds and tests on Linux. The platform
-  # RDCore.PlatformInstaller deploys is Windows-only for now (win-x64), and so are the tests of what it does on disk there.
+  # RDCore.PlatformInstaller deploys is a zip on Windows and a tar.gz on Linux and macOS, and both are tested on each system;
+  # the tests of what only Windows does on disk, refusing to rename a folder with a file open in it, run on Windows only.
   strategy:
    fail-fast: false
    matrix:
