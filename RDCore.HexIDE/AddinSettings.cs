@@ -2,6 +2,7 @@ using System.Reflection;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using RDCore.PlatformInstaller;
+using RDCore.SDK.Platform;
 
 namespace RDCore.HexIDE;
 

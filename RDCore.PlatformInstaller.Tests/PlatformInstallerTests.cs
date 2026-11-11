@@ -1,4 +1,5 @@
 using System.Formats.Tar;
+using RDCore.SDK.Platform;
 
 namespace RDCore.PlatformInstaller.Tests;
 

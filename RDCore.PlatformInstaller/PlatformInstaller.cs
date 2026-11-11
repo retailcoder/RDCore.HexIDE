@@ -2,8 +2,8 @@ using System.Formats.Tar;
 using System.IO.Compression;
 using System.Security.Cryptography;
 using System.Text;
-using System.Text.Json;
-using System.Text.Json.Nodes;
+using RDCore.SDK.Client;
+using RDCore.SDK.Platform;
 
 namespace RDCore.PlatformInstaller;
 
@@ -17,7 +17,8 @@ namespace RDCore.PlatformInstaller;
 /// and is complete before it is named the current one in <c>installer.json</c>. A server running from the version before
 /// keeps running; the next start uses the new one. The current version and the one before it are kept. An older one is
 /// removed whole or not at all: it is renamed out of the way first, which fails while any of its files is open, as a running
-/// server's are on Windows, and it is left where it is until a later installation finds it unused.
+/// server's are on Windows, and it is left where it is until a later installation finds it unused. These are the rules of the
+/// SDK's <see cref="SharedPlatformRoot"/>, which <c>rdc install</c> deploys by too.
 /// </para>
 /// <para>
 /// <b>One installation at a time</b>, across processes: two IDE windows wanting the platform at once take turns, and the
@@ -31,15 +32,11 @@ namespace RDCore.PlatformInstaller;
 /// </remarks>
 public sealed class PlatformInstaller
 {
-    private const string StateFile = "installer.json";
-    private const string VersionsFolder = "versions";
     private const string DownloadsFolder = "downloads";
-    private const string LockFile = "install.lock";
-    private const string RemovingSuffix = ".removing";
-    private static readonly TimeSpan LockRetry = TimeSpan.FromMilliseconds(200);
 
     private readonly PlatformInstallerOptions options;
     private readonly HttpClient http;
+    private readonly SharedPlatformRoot shared;
 
     /// <summary>An installer for <paramref name="options"/>, downloading with <paramref name="http"/>.</summary>
     public PlatformInstaller(PlatformInstallerOptions options, HttpClient http)
@@ -47,6 +44,7 @@ public sealed class PlatformInstaller
         ArgumentException.ThrowIfNullOrWhiteSpace(options.Root);
         this.options = options;
         this.http = http;
+        shared = new SharedPlatformRoot(options.Root);
         Feed = new ReleaseFeed(http, options);
     }
 
@@ -54,26 +52,13 @@ public sealed class PlatformInstaller
     public ReleaseFeed Feed { get; }
 
     /// <summary>The platform in use, or null when none is deployed, or the one named is gone or incomplete.</summary>
-    public InstalledPlatform? Current
-    {
-        get
-        {
-            var state = ReadState();
-            if (state.Current is not { } current || !PlatformVersion.TryParse(current, out var version))
-            {
-                return null;
-            }
-
-            var root = VersionRoot(version);
-            return IsDeployed(root) ? new InstalledPlatform(version, root) : null;
-        }
-    }
+    public InstalledPlatform? Current => shared.Current is { } current ? new InstalledPlatform(current.Version, current.Root) : null;
 
     /// <summary>The folder the installer owns, <see cref="PlatformInstallerOptions.Root"/>.</summary>
     public string Root => options.Root;
 
     /// <summary>Where <paramref name="version"/> is, or would be, deployed.</summary>
-    public string VersionRoot(PlatformVersion version) => Path.Combine(options.Root, VersionsFolder, version.Text);
+    public string VersionRoot(PlatformVersion version) => shared.VersionRoot(version);
 
     /// <summary>
     /// Keeps <paramref name="platform"/> deployed for as long as the lease is held, whatever any installer removes meanwhile: hold
@@ -106,11 +91,10 @@ public sealed class PlatformInstaller
     public async Task<InstalledPlatform> InstallAsync(PlatformRelease release, IProgress<InstallProgress>? progress,
         CancellationToken cancellationToken)
     {
-        Directory.CreateDirectory(options.Root);
-        using var gate = await AcquireLockAsync(cancellationToken).ConfigureAwait(false);
+        using var gate = await shared.LockAsync(null, cancellationToken).ConfigureAwait(false);
 
         var root = VersionRoot(release.Version);
-        if (!IsDeployed(root))
+        if (!SharedPlatformRoot.IsWhole(root))
         {
             await DeployAsync(release, root, progress, cancellationToken).ConfigureAwait(false);
         }
@@ -119,12 +103,8 @@ public sealed class PlatformInstaller
             progress?.Report(new InstallProgress(InstallStage.Deploying));
         }
 
-        if (Current is not { } current || current.Version.CompareTo(release.Version) <= 0)
-        {
-            MakeCurrent(release.Version);
-        }
-
-        RemoveOldVersions(keep: release.Version);
+        shared.MakeCurrentUnlessOlder(release.Version);
+        shared.RemoveOldVersions(keep: release.Version);
         return new InstalledPlatform(release.Version, root);
     }
 
@@ -148,7 +128,7 @@ public sealed class PlatformInstaller
 
         var downloads = Directory.CreateDirectory(Path.Combine(options.Root, DownloadsFolder)).FullName;
         var archive = Path.Combine(downloads, release.ArchiveName + ".partial");
-        var unpacked = root + ".partial";
+        var unpacked = shared.PartialRoot(release.Version);
         try
         {
             var actual = await DownloadAsync(release, archive, progress, cancellationToken).ConfigureAwait(false);
@@ -165,10 +145,7 @@ public sealed class PlatformInstaller
             EnsurePlatform(unpacked, release);
 
             progress?.Report(new InstallProgress(InstallStage.Deploying));
-            // A folder of this version that isn't a whole platform is what's left of a deployment someone broke: it is replaced.
-            DeleteFolder(root);
-            Directory.CreateDirectory(Path.GetDirectoryName(root)!);
-            Directory.Move(unpacked, root);
+            shared.MoveIntoPlace(release.Version);
         }
         finally
         {
@@ -380,130 +357,24 @@ public sealed class PlatformInstaller
         }
     }
 
-    // A version is deployed while its folder is still a whole platform: one whose language server was removed is deployed again.
-    private static bool IsDeployed(string root) => Flaw(root) is null;
 
-    // A platform root holds rdcore.json at its top, and the language server where that names it, inside the root: why the
-    // folder isn't one, or null when it is.
+    // A platform root holds rdcore.json at its top, and the language server where that names it, inside the root, as the SDK
+    // starts it: why the folder isn't one, or null when it is.
     internal static (string Why, Exception? Inner)? Flaw(string root)
     {
-        var manifestPath = Path.Combine(root, "rdcore.json");
-        if (!File.Exists(manifestPath))
-        {
-            return ("it has no rdcore.json at its root", null);
-        }
-
-        string? languageServer;
         try
         {
-            languageServer = JsonNode.Parse(File.ReadAllText(manifestPath))?["langService"]?.GetValue<string>();
+            _ = RDCoreLanguageServerLaunch.FindLanguageServer(root);
+            return null;
         }
-        catch (Exception ex) when (ex is JsonException or InvalidOperationException or FormatException)
+        catch (Exception ex) when (ex is IOException or InvalidDataException or UnauthorizedAccessException)
         {
-            return ($"its rdcore.json can't be read: {ex.Message}", ex);
+            return (ex.Message, ex);
         }
-
-        if (string.IsNullOrWhiteSpace(languageServer))
-        {
-            return ("its rdcore.json names no language server", null);
-        }
-
-        var full = Path.GetFullPath(Path.Combine(root, languageServer.Replace('\\', '/').Replace('/', Path.DirectorySeparatorChar)));
-        var prefix = Path.TrimEndingDirectorySeparator(Path.GetFullPath(root)) + Path.DirectorySeparatorChar;
-        var comparison = OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal;
-        if (Path.IsPathRooted(languageServer) || !full.StartsWith(prefix, comparison))
-        {
-            return ($"its rdcore.json names a language server outside the platform, {languageServer}", null);
-        }
-
-        if (!File.Exists(full) && !File.Exists(full + ".exe"))
-        {
-            return ($"it has no language server at {languageServer}, which its rdcore.json names", null);
-        }
-
-        return null;
     }
 
     private static PlatformInstallException NotAPlatform(PlatformRelease release, string why, Exception? inner = null) =>
-        new(InstallFailure.NotAPlatform, $"{release.ArchiveName} isn't an RDCore platform: {why}.", inner);
-
-    private InstallerState ReadState()
-    {
-        var path = Path.Combine(options.Root, StateFile);
-        try
-        {
-            return File.Exists(path) ? JsonSerializer.Deserialize<InstallerState>(File.ReadAllText(path)) ?? new() : new();
-        }
-        catch (JsonException)
-        {
-            // A state file nobody can read names no platform; the next installation writes a good one.
-            return new();
-        }
-    }
-
-    // Written whole, then moved over the old file, so a reader never sees half of it.
-    private void MakeCurrent(PlatformVersion version)
-    {
-        var state = ReadState();
-        if (state.Current != version.Text)
-        {
-            state = state with { Current = version.Text, Previous = state.Current };
-        }
-
-        var path = Path.Combine(options.Root, StateFile);
-        var temporary = path + ".tmp";
-        File.WriteAllText(temporary, JsonSerializer.Serialize(state));
-        File.Move(temporary, path, overwrite: true);
-    }
-
-    // Every version but the current one, the one before it and the one just installed, each whole: renamed out of the way
-    // first, which fails while a process runs from it, and only then deleted. One that can't be renamed is left as it is, for a
-    // later installation.
-    private void RemoveOldVersions(PlatformVersion keep)
-    {
-        var state = ReadState();
-        var versions = Path.Combine(options.Root, VersionsFolder);
-        foreach (var folder in Directory.EnumerateDirectories(versions))
-        {
-            var name = Path.GetFileName(folder);
-            if (name.EndsWith(RemovingSuffix, StringComparison.Ordinal))
-            {
-                // A removal an earlier installation couldn't finish: nothing runs from it, as it was renamed.
-                TryDelete(folder);
-                continue;
-            }
-
-            if (name == state.Current || name == state.Previous || name == keep.Text || !PlatformVersion.TryParse(name, out _))
-            {
-                continue;
-            }
-
-            var removing = folder + RemovingSuffix;
-            try
-            {
-                Directory.Move(folder, removing);
-            }
-            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
-            {
-                // Still in use.
-                continue;
-            }
-
-            TryDelete(removing);
-        }
-    }
-
-    private static void TryDelete(string folder)
-    {
-        try
-        {
-            Directory.Delete(folder, recursive: true);
-        }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
-        {
-            // Tried again after the next installation.
-        }
-    }
+        new(InstallFailure.NotAPlatform, $"{release.ArchiveName} isn't an RDCore platform: {why.TrimEnd('.')}.", inner);
 
     private static void DeleteFolder(string path)
     {
@@ -511,31 +382,6 @@ public sealed class PlatformInstaller
         {
             Directory.Delete(path, recursive: true);
         }
-    }
-
-    // An exclusive handle on a file under the root: held for the installation, released with it, and freed by the system if
-    // the process dies holding it.
-    private async Task<FileStream> AcquireLockAsync(CancellationToken cancellationToken)
-    {
-        var path = Path.Combine(options.Root, LockFile);
-        while (true)
-        {
-            cancellationToken.ThrowIfCancellationRequested();
-            try
-            {
-                return new FileStream(path, FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.None);
-            }
-            catch (IOException)
-            {
-                await Task.Delay(LockRetry, cancellationToken).ConfigureAwait(false);
-            }
-        }
-    }
-
-    private sealed record InstallerState
-    {
-        public string? Current { get; init; }
-        public string? Previous { get; init; }
     }
 }
 

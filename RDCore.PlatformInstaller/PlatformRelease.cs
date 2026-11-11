@@ -1,3 +1,5 @@
+using RDCore.SDK.Platform;
+
 namespace RDCore.PlatformInstaller;
 
 /// <summary>Which releases are offered: releases only, or prereleases too.</summary>

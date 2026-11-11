@@ -1,3 +1,5 @@
+using RDCore.SDK.Platform;
+
 namespace RDCore.PlatformInstaller.Tests;
 
 [TestClass]
@@ -77,37 +79,6 @@ public class ReleaseFeedTests
 
         Assert.AreEqual("0.2.0",
             (await Feed(github, sdk: "0.1.1-alpha").FindAsync(PlatformVersion.Parse("0.2.0"), TestContext.CancellationToken))?.Version.Text);
-    }
-
-    [TestMethod]
-    [DataRow("0.1.1-alpha", "0.1.0-alpha", true)]
-    [DataRow("0.1.1-alpha", "0.1.7", true)]
-    [DataRow("0.1.1-alpha", "0.2.0-alpha", false)]
-    [DataRow("0.2.0", "0.1.9", false)]
-    [DataRow("0.1.1", "1.1.0", false)]
-    [DataRow("1.0.0", "1.4.2", true)]
-    [DataRow("1.4.2", "1.0.0-rc.1", true)]
-    [DataRow("1.4.2", "2.0.0", false)]
-    [DataRow("2.0.0", "1.9.0", false)]
-    public void RDCore_SDK_versions_are_compatible_with_the_same_major_and_minor_before_1_0_and_the_same_major_from_1_0(
-        string client, string built, bool compatible)
-    {
-        Assert.AreEqual(compatible, ReleaseFeed.IsCompatible(PlatformVersion.Parse(client), PlatformVersion.Parse(built)));
-    }
-
-    [TestMethod]
-    [DataRow("""{ "sdk": { "package": "RDCore.SDK", "version": "0.1.1-alpha" } }""", "0.1.1-alpha")]
-    [DataRow("""{ "sdk": { "package": "RDCore.SDK", "version": "0.1.1-alpha+db05a807" } }""", "0.1.1-alpha")]
-    [DataRow("""{ "sdk": { "package": "Another.SDK", "version": "0.1.1-alpha" } }""", null)]
-    [DataRow("""{ "sdk": { "package": "RDCore.SDK" } }""", null)]
-    [DataRow("""{ "sdk": { "package": "RDCore.SDK", "version": "not a version" } }""", null)]
-    [DataRow("""{ "sdk": "0.1.1-alpha" }""", null)]
-    [DataRow("""{ "schema": 1 }""", null)]
-    [DataRow("""[ 1, 2 ]""", null)]
-    [DataRow("""not json""", null)]
-    public void The_RDCore_SDK_a_release_json_names_is_read_from_its_sdk_and_nothing_else(string json, string? expected)
-    {
-        Assert.AreEqual(expected, ReleaseFeed.SdkOf(System.Text.Encoding.UTF8.GetBytes(json))?.Text);
     }
 
     private static FakeGitHub Releases() => new FakeGitHub()

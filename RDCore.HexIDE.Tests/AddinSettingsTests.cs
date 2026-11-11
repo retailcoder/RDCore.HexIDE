@@ -1,6 +1,7 @@
 using System.Reflection;
 using RDCore.PlatformInstaller;
 using RDCore.SDK.Client;
+using RDCore.SDK.Platform;
 
 namespace RDCore.HexIDE.Tests;
 
