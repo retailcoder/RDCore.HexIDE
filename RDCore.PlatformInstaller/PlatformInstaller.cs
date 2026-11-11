@@ -17,7 +17,8 @@ namespace RDCore.PlatformInstaller;
 /// and is complete before it is named the current one in <c>installer.json</c>. A server running from the version before
 /// keeps running; the next start uses the new one. The current version and the one before it are kept. An older one is
 /// removed whole or not at all: it is renamed out of the way first, which fails while any of its files is open, as a running
-/// server's are on Windows, and it is left where it is until a later installation finds it unused. These are the rules of the
+/// server's are on Windows, and it is left where it is until a later installation finds it unused. A version a server runs from is
+/// held while it runs (<see cref="SharedPlatformRoot.Hold"/>), and a removal leaves it where it is. These are the rules of the
 /// SDK's <see cref="SharedPlatformRoot"/>, which <c>rdc install</c> deploys by too.
 /// </para>
 /// <para>
@@ -52,7 +53,7 @@ public sealed class PlatformInstaller
     public ReleaseFeed Feed { get; }
 
     /// <summary>The platform in use, or null when none is deployed, or the one named is gone or incomplete.</summary>
-    public InstalledPlatform? Current => shared.Current is { } current ? new InstalledPlatform(current.Version, current.Root) : null;
+    public DeployedPlatform? Current => shared.Current;
 
     /// <summary>The folder the installer owns, <see cref="PlatformInstallerOptions.Root"/>.</summary>
     public string Root => options.Root;
@@ -60,19 +61,6 @@ public sealed class PlatformInstaller
     /// <summary>Where <paramref name="version"/> is, or would be, deployed.</summary>
     public string VersionRoot(PlatformVersion version) => shared.VersionRoot(version);
 
-    /// <summary>
-    /// Keeps <paramref name="platform"/> deployed for as long as the lease is held, whatever any installer removes meanwhile: hold
-    /// it while a server runs from it. Its manifest stays open, readable by anyone but not removable, so the version's folder
-    /// can't be renamed out of the way, and a removal leaves it whole. The lease is per process, and the system frees it with the
-    /// process.
-    /// </summary>
-    /// <remarks>
-    /// <b>Windows only.</b> The guard is Windows' refusal to rename a folder that holds an open file. Elsewhere an open file
-    /// doesn't stop its folder being renamed or removed, so the lease keeps nothing deployed there.
-    /// </remarks>
-    /// <exception cref="FileNotFoundException">The platform isn't deployed any more.</exception>
-    public static IDisposable Hold(InstalledPlatform platform) =>
-        new FileStream(platform.Manifest, FileMode.Open, FileAccess.Read, FileShare.Read);
 
     /// <summary>
     /// Deploys <paramref name="release"/> and makes it the platform in use. A version deployed already, by this process or
@@ -88,7 +76,7 @@ public sealed class PlatformInstaller
     /// deployed, and the platform in use stays as it was.
     /// </exception>
     /// <exception cref="HttpRequestException">The release couldn't be downloaded.</exception>
-    public async Task<InstalledPlatform> InstallAsync(PlatformRelease release, IProgress<InstallProgress>? progress,
+    public async Task<DeployedPlatform> InstallAsync(PlatformRelease release, IProgress<InstallProgress>? progress,
         CancellationToken cancellationToken)
     {
         using var gate = await shared.LockAsync(null, cancellationToken).ConfigureAwait(false);
@@ -105,7 +93,7 @@ public sealed class PlatformInstaller
 
         shared.MakeCurrentUnlessOlder(release.Version);
         shared.RemoveOldVersions(keep: release.Version);
-        return new InstalledPlatform(release.Version, root);
+        return new DeployedPlatform(release.Version, root);
     }
 
     private async Task DeployAsync(PlatformRelease release, string root, IProgress<InstallProgress>? progress,

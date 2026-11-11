@@ -1,11 +1,12 @@
 using System.Diagnostics;
 using RDCore.HexIDE.Resources;
 using RDCore.PlatformInstaller;
+using RDCore.SDK.Platform;
 
 namespace RDCore.HexIDE.Platform;
 
 /// <summary>The platform a server runs from: its root, and the installed version when it is one, not a development root.</summary>
-internal sealed record PlatformChoice(string Root, InstalledPlatform? Installed);
+internal sealed record PlatformChoice(string Root, DeployedPlatform? Installed);
 
 /// <summary>There is no platform to run; the message says why, in the user's language.</summary>
 internal sealed class PlatformUnavailableException(string message, Exception? innerException = null)
@@ -400,9 +401,9 @@ internal sealed class PlatformSource(AddinSettings settings, string settingsPath
         }
     }
 
-    private async Task<InstalledPlatform> InstallAsync(PlatformRelease release, CancellationToken cancellationToken)
+    private async Task<DeployedPlatform> InstallAsync(PlatformRelease release, CancellationToken cancellationToken)
     {
-        InstalledPlatform deployed;
+        DeployedPlatform deployed;
         using (var view = prompts.ShowInstall(release))
         {
             deployed = await Task.Run(() => installer.InstallAsync(release, view, cancellationToken), cancellationToken);
@@ -414,7 +415,7 @@ internal sealed class PlatformSource(AddinSettings settings, string settingsPath
 
     // The version in use's rdc on the user's PATH, once for each version this add-in deployed and made the one in use. An older
     // version deployed beside the one in use isn't put there.
-    private async Task AddToPathAsync(InstalledPlatform deployed)
+    private async Task AddToPathAsync(DeployedPlatform deployed)
     {
         if (installer.Current?.Version.Equals(deployed.Version) != true)
         {

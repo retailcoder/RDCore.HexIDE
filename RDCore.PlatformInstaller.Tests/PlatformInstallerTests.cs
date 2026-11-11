@@ -30,7 +30,7 @@ public sealed class PlatformInstallerTests : IDisposable
     private PlatformInstaller LinuxInstaller(FakeGitHub github, Func<PlatformInstallerOptions, PlatformInstallerOptions>? adjust = null) =>
         Installer(github, adjust: options => (adjust ?? (options => options))(options with { RuntimeIdentifier = "linux-x64" }));
 
-    private async Task<InstalledPlatform> InstallLatestAsync(PlatformInstaller installer, IProgress<InstallProgress>? progress = null)
+    private async Task<DeployedPlatform> InstallLatestAsync(PlatformInstaller installer, IProgress<InstallProgress>? progress = null)
     {
         var release = await installer.Feed.FindLatestAsync(TestContext.CancellationToken);
         Assert.IsNotNull(release);
@@ -336,13 +336,11 @@ public sealed class PlatformInstallerTests : IDisposable
         CollectionAssert.AreEqual(new[] { "0.3.0", "0.4.0" }, Versions(), "removed once a later installation finds it unused");
     }
 
-    // Only Windows refuses to rename a folder with a file open in it, which is what keeps a held version whole.
     [TestMethod]
-    [OSCondition(OperatingSystems.Windows)]
     public async Task A_version_a_server_still_runs_from_is_kept_whole_and_removed_once_it_is_released()
     {
         var held = await InstallLatestAsync(Installer(new FakeGitHub().Release("v0.1.0")));
-        var lease = PlatformInstaller.Hold(held);
+        var lease = SharedPlatformRoot.Hold(held);
         await InstallLatestAsync(Installer(new FakeGitHub().Release("v0.2.0")));
 
         await InstallLatestAsync(Installer(new FakeGitHub().Release("v0.3.0")));

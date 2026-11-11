@@ -3,6 +3,7 @@ using HexIDE.Lsp;
 using RDCore.HexIDE.Platform;
 using RDCore.HexIDE.Resources;
 using RDCore.SDK.Client;
+using RDCore.SDK.Platform;
 
 namespace RDCore.HexIDE.Server;
 
@@ -74,7 +75,7 @@ internal sealed class RDCoreServer(IHexIdeHost host, PlatformSource platform, IU
         try
         {
             // Held while the server is registered, so no installer removes the version it runs from.
-            lease = choice.Installed is { } installed ? PlatformInstaller.PlatformInstaller.Hold(installed) : null;
+            lease = choice.Installed is { } installed ? SharedPlatformRoot.Hold(installed) : null;
             launch = RDCoreLanguageServerLaunch.Prepare(new RDCoreLanguageServerLaunchOptions
             {
                 PlatformRoot = choice.Root,
@@ -130,7 +131,7 @@ internal sealed class RDCoreServer(IHexIdeHost host, PlatformSource platform, IU
         {
             if (connection is not null && lease is null && choice.Installed is { } installed)
             {
-                lease = PlatformInstaller.PlatformInstaller.Hold(installed);
+                lease = SharedPlatformRoot.Hold(installed);
             }
         }
     }

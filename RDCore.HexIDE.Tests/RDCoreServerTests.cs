@@ -300,7 +300,7 @@ public sealed class RDCoreServerTests : IDisposable
         Assert.IsNull(server.Connection);
     }
 
-    // Only Windows keeps a file that is open from being deleted, which is what the lease relies on.
+    // Only Windows keeps a file that is open from being deleted, which is how this sees the lease.
     [TestMethod]
     [OSCondition(OperatingSystems.Windows)]
     public async Task The_installed_version_a_server_is_registered_from_is_held_until_the_server_goes()
@@ -315,7 +315,7 @@ public sealed class RDCoreServerTests : IDisposable
         File.Delete(manifest);
     }
 
-    // The lease is what would keep the version's folder from being replaced, and only Windows enforces it.
+    // The lease is what would keep the version's folder from being replaced, and only Windows enforces it against a plain delete.
     [TestMethod]
     [OSCondition(OperatingSystems.Windows)]
     public async Task A_held_version_that_lost_its_language_server_is_deployed_again_before_the_server_starts_and_held_again()
