@@ -316,12 +316,12 @@ internal sealed class PlatformSource(AddinSettings settings, string settingsPath
 
     /// <summary>
     /// Makes sure the platform <paramref name="choice"/> names is still whole before its server starts, as
-    /// <c>RDCoreLanguageServerLaunch.FindLanguageServer</c> finds its language server. When it isn't, the same version is
-    /// deployed again, as the server's launch names it, once the user agrees.
+    /// <see cref="RDCoreLanguageServerLaunch.FindLanguageServer"/> finds its language server. When it is not, the same version
+    /// (<see cref="PlatformChoice.Installed"/>) is deployed again, once the user agrees.
     /// </summary>
     /// <param name="choice">The platform the server runs from.</param>
     /// <param name="cancellationToken">Ends the check, when the server's start is ended.</param>
-    /// <exception cref="InvalidOperationException">It is gone and can't be had again; the message says why, for HexIDE to show.</exception>
+    /// <exception cref="InvalidOperationException">It is not whole and cannot be deployed again; the message says why, for HexIDE to show.</exception>
     public async Task EnsureStillThereAsync(PlatformChoice choice, CancellationToken cancellationToken)
     {
         string unusable;
