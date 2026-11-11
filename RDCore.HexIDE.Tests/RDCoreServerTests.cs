@@ -8,6 +8,7 @@ using RDCore.HexIDE.Server;
 using RDCore.PlatformInstaller;
 using RDCore.PlatformInstaller.Tests;
 using RDCore.SDK.Client;
+using RDCore.SDK.Platform;
 
 namespace RDCore.HexIDE.Tests;
 
@@ -77,6 +78,8 @@ public sealed class RDCoreServerTests : IDisposable
         Assert.AreEqual(root, entry.Environment![RDCoreLanguageServerLaunch.PlatformRootEnvironmentVariable]);
         Assert.AreEqual("pipe", entry.Transport);
         Assert.AreEqual("connect", entry.PipeRole);
+        Assert.IsTrue(entry.PipeName!.StartsWith("rdc-", StringComparison.Ordinal) && entry.PipeName.Length <= PlatformPipeName.MaxLength,
+            $"a pipe name the platform makes, short enough for a macOS socket path: {entry.PipeName}");
         CollectionAssert.AreEqual(
             new[] { "--pipe-name", "{pipe}", "--workspace", "{workspaceUri}", "--client-process-id", "{pid}" }, entry.Arguments!.List);
         CollectionAssert.AreEquivalent(new[] { ".bas", ".cls", ".frm", ".doccls" }, entry.Extensions);
