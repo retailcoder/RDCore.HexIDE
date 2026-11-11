@@ -30,7 +30,7 @@ public sealed class PlatformSourceTests : IDisposable
     private PlatformSource Source(HttpMessageHandler github, string? platformRoot = null) =>
         new(new AddinSettings { PlatformRoot = platformRoot },
             new PlatformInstaller.PlatformInstaller(
-                new PlatformInstallerOptions { Root = Path.Combine(folder, "installed"), Channel = ReleaseChannel.Preview },
+                new PlatformInstallerOptions { Root = Path.Combine(folder, "installed"), Channel = ReleaseChannel.Preview, RuntimeIdentifier = "win-x64" },
                 new HttpClient(github)),
             prompts);
 

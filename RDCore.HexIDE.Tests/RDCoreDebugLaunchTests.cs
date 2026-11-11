@@ -51,6 +51,7 @@ public sealed class RDCoreDebugLaunchTests : IDisposable
         {
             Root = Path.Combine(folder, "installed"),
             Channel = ReleaseChannel.Preview,
+            RuntimeIdentifier = "win-x64",
         }, new HttpClient(github ?? new FakeGitHub()));
         return new PlatformSource(new AddinSettings { PlatformRoot = platformRoot }, installer, prompts);
     }

@@ -12,13 +12,19 @@ public enum ReleaseChannel
 
 /// <summary>A published release of the platform, for one runtime identifier, with the assets an installation needs.</summary>
 /// <param name="Version">Its version, from its tag.</param>
-/// <param name="Archive">The platform's zip: <c>rdcore-&lt;version&gt;-&lt;rid&gt;.zip</c>, whose root is the platform root.</param>
-/// <param name="ArchiveSize">The zip's size in bytes, as the release lists it.</param>
-/// <param name="Checksums">The release's <c>SHA256SUMS</c>, which names the zip's digest.</param>
+/// <param name="Archive">
+/// The platform's archive, whose root is the platform root: <c>rdcore-&lt;version&gt;-&lt;rid&gt;.zip</c> for Windows, and
+/// <c>rdcore-&lt;version&gt;-&lt;rid&gt;.tar.gz</c> for Linux and macOS, which keeps each file's mode.
+/// </param>
+/// <param name="ArchiveSize">The archive's size in bytes, as the release lists it.</param>
+/// <param name="Checksums">The release's <c>SHA256SUMS</c>, which names the archive's digest.</param>
 public sealed record PlatformRelease(PlatformVersion Version, Uri Archive, long ArchiveSize, Uri Checksums)
 {
-    /// <summary>The zip's file name, as <c>SHA256SUMS</c> names it.</summary>
+    /// <summary>The archive's file name, as <c>SHA256SUMS</c> names it.</summary>
     public string ArchiveName => Path.GetFileName(Archive.AbsolutePath);
+
+    /// <summary>Whether the archive is a tar.gz rather than a zip.</summary>
+    internal bool IsTarGz => ArchiveName.EndsWith(".tar.gz", StringComparison.Ordinal);
 }
 
 /// <summary>A platform deployed on the machine.</summary>

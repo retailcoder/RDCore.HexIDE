@@ -1,3 +1,5 @@
+using System.Runtime.InteropServices;
+
 namespace RDCore.PlatformInstaller;
 
 /// <summary>Where the platform is installed from and to.</summary>
@@ -15,8 +17,8 @@ public sealed record PlatformInstallerOptions
     /// <summary>The GitHub repository whose releases carry the platform, as <c>owner/name</c>.</summary>
     public string Repository { get; init; } = "rubberduck-vba/RDCore";
 
-    /// <summary>The runtime identifier of the platform to install. Releases are built for <c>win-x64</c> only, for now.</summary>
-    public string RuntimeIdentifier { get; init; } = "win-x64";
+    /// <summary>The runtime identifier of the platform to install: by default <see cref="MachineRuntimeIdentifier"/>.</summary>
+    public string RuntimeIdentifier { get; init; } = MachineRuntimeIdentifier;
 
     /// <summary>The GitHub REST API's base address.</summary>
     public Uri ApiBase { get; init; } = new("https://api.github.com/");
@@ -27,13 +29,15 @@ public sealed record PlatformInstallerOptions
     /// </summary>
     public IReadOnlyList<string> AssetHosts { get; init; } = ["github.com"];
 
-    /// <summary>The most a platform's zip may be; a bigger download is refused. 1 GiB.</summary>
+    /// <summary>The most a platform's archive may be; a bigger download is refused. 1 GiB.</summary>
     public long MaxArchiveBytes { get; init; } = 1L << 30;
 
     /// <summary>The most a platform may unpack to; a bigger archive is refused before it is unpacked. 4 GiB.</summary>
     public long MaxExtractedBytes { get; init; } = 4L << 30;
 
-    /// <summary>The most entries a platform's zip may have; one with more is refused before it is unpacked.</summary>
+    /// <summary>
+    /// The most entries a platform's archive may have, its folders counted; one with more is refused before it is unpacked.
+    /// </summary>
     public int MaxEntries { get; init; } = 50_000;
 
     /// <summary>The most a release's <c>SHA256SUMS</c> may be; a bigger one is refused before the platform is downloaded. 64 KiB.</summary>
@@ -48,4 +52,12 @@ public sealed record PlatformInstallerOptions
     /// </summary>
     public static string DefaultRoot =>
         Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "RDCore", "Platform");
+
+    /// <summary>
+    /// The runtime identifier of a platform built for this machine: its system (<c>win</c>, <c>osx</c> or <c>linux</c>) and the
+    /// process's architecture, as in <c>win-x64</c> or <c>osx-arm64</c>. Releases carry a platform for <c>win-x64</c>,
+    /// <c>linux-x64</c>, <c>osx-x64</c> and <c>osx-arm64</c>; on any other machine, no release is offered.
+    /// </summary>
+    public static string MachineRuntimeIdentifier =>
+        $"{(OperatingSystem.IsWindows() ? "win" : OperatingSystem.IsMacOS() ? "osx" : "linux")}-{RuntimeInformation.ProcessArchitecture.ToString().ToLowerInvariant()}";
 }

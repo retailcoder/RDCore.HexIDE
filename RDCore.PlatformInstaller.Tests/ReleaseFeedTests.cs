@@ -3,8 +3,8 @@ namespace RDCore.PlatformInstaller.Tests;
 [TestClass]
 public class ReleaseFeedTests
 {
-    private static ReleaseFeed Feed(FakeGitHub github, ReleaseChannel channel = ReleaseChannel.Stable) =>
-        new(new HttpClient(github), new PlatformInstallerOptions { Root = Path.GetTempPath(), Channel = channel });
+    private static ReleaseFeed Feed(FakeGitHub github, ReleaseChannel channel = ReleaseChannel.Stable, string rid = "win-x64") =>
+        new(new HttpClient(github), new PlatformInstallerOptions { Root = Path.GetTempPath(), Channel = channel, RuntimeIdentifier = rid });
 
     private static FakeGitHub Releases() => new FakeGitHub()
         .Release("v0.1.0")
@@ -37,6 +37,29 @@ public class ReleaseFeedTests
         var latest = await Feed(github).FindLatestAsync(TestContext.CancellationToken);
 
         Assert.AreEqual("0.1.0", latest?.Version.Text);
+    }
+
+    [TestMethod]
+    [DataRow("linux-x64")]
+    [DataRow("osx-x64")]
+    [DataRow("osx-arm64")]
+    public async Task Off_Windows_a_release_s_tar_gz_for_the_runtime_identifier_is_offered_and_another_s_platform_is_not(string rid)
+    {
+        var github = new FakeGitHub().Release("v0.1.0", rid: rid, tarGz: true).Release("v0.2.0").Release("v0.2.1", rid: "linux-arm64", tarGz: true);
+
+        var latest = await Feed(github, rid: rid).FindLatestAsync(TestContext.CancellationToken);
+
+        Assert.AreEqual("0.1.0", latest?.Version.Text);
+        Assert.AreEqual($"rdcore-0.1.0-{rid}.tar.gz", latest?.ArchiveName);
+    }
+
+    [TestMethod]
+    public void The_runtime_identifier_is_the_machine_s_own_unless_one_is_given()
+    {
+        var system = OperatingSystem.IsWindows() ? "win" : OperatingSystem.IsMacOS() ? "osx" : "linux";
+        var architecture = System.Runtime.InteropServices.RuntimeInformation.ProcessArchitecture.ToString().ToLowerInvariant();
+
+        Assert.AreEqual($"{system}-{architecture}", new PlatformInstallerOptions { Root = Path.GetTempPath() }.RuntimeIdentifier);
     }
 
     [TestMethod]

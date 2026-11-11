@@ -1,3 +1,4 @@
+using System.Formats.Tar;
 using System.IO.Compression;
 using System.Security.Cryptography;
 using System.Text;
@@ -215,9 +216,21 @@ public sealed class PlatformInstaller
     private static PlatformInstallException TooLarge(PlatformRelease release, long size, long limit) =>
         new(InstallFailure.TooLarge, $"{release.ArchiveName} is bigger than it should be: {size} bytes, where {limit} is the most.");
 
+    private void Extract(string archive, string folder, PlatformRelease release)
+    {
+        if (release.IsTarGz)
+        {
+            ExtractTarGz(archive, folder, release);
+        }
+        else
+        {
+            ExtractZip(archive, folder, release);
+        }
+    }
+
     // Refused whole before anything is written when it has too many entries or unpacks too big. ExtractToDirectory itself
     // refuses an entry that would land outside the folder.
-    private void Extract(string archive, string folder, PlatformRelease release)
+    private void ExtractZip(string archive, string folder, PlatformRelease release)
     {
         using (var zip = ZipFile.OpenRead(archive))
         {
@@ -241,9 +254,120 @@ public sealed class PlatformInstaller
         }
         catch (IOException ex) when (ex is not FileNotFoundException and not DirectoryNotFoundException)
         {
-            throw new PlatformInstallException(InstallFailure.NotAPlatform, $"{release.ArchiveName} can't be unpacked: {ex.Message}", ex);
+            throw Unpackable(release, ex);
         }
     }
+
+    // Read twice. The first reading takes the entries' headers alone, and refuses the archive whole before anything is written
+    // when it has too many entries, unpacks too big, has a link, or has an entry that would land outside the folder. The second
+    // unpacks it, and gives each folder and file its entry's permissions, so an executable stays one.
+    private void ExtractTarGz(string archive, string folder, PlatformRelease release)
+    {
+        var root = Path.TrimEndingDirectorySeparator(Path.GetFullPath(folder));
+        try
+        {
+            using (var reader = OpenTarGz(archive, release))
+            {
+                long entries = 0;
+                long size = 0;
+                while (reader.GetNextEntry() is { } entry)
+                {
+                    if (++entries > options.MaxEntries)
+                    {
+                        throw new PlatformInstallException(InstallFailure.TooLarge,
+                            $"{release.ArchiveName} has more than {options.MaxEntries} entries, the most an archive may have.");
+                    }
+
+                    TargetOf(entry, root, release);
+                    size += entry.Length;
+                    if (size > options.MaxExtractedBytes)
+                    {
+                        throw new PlatformInstallException(InstallFailure.TooLarge,
+                            $"{release.ArchiveName} unpacks to more than {options.MaxExtractedBytes} bytes, the most a platform may unpack to.");
+                    }
+                }
+            }
+
+            Directory.CreateDirectory(root);
+            List<(string Path, UnixFileMode Mode)> folders = [];
+            using (var reader = OpenTarGz(archive, release))
+            {
+                while (reader.GetNextEntry() is { } entry)
+                {
+                    var target = TargetOf(entry, root, release);
+                    var mode = entry.Mode & PermissionBits;
+                    if (entry.EntryType == TarEntryType.Directory)
+                    {
+                        Directory.CreateDirectory(target);
+                        folders.Add((target, mode));
+                        continue;
+                    }
+
+                    Directory.CreateDirectory(Path.GetDirectoryName(target)!);
+                    entry.ExtractToFile(target, overwrite: false);
+                    if (!OperatingSystem.IsWindows())
+                    {
+                        File.SetUnixFileMode(target, mode);
+                    }
+                }
+            }
+
+            // Last, and the deepest first, so a folder that isn't writable is one only once everything is in it.
+            if (!OperatingSystem.IsWindows())
+            {
+                foreach (var (path, mode) in Enumerable.Reverse(folders))
+                {
+                    File.SetUnixFileMode(path, mode);
+                }
+            }
+        }
+        catch (Exception ex) when (ex is InvalidDataException or ArgumentException
+            or (IOException and not FileNotFoundException and not DirectoryNotFoundException))
+        {
+            throw Unpackable(release, ex);
+        }
+    }
+
+    // The permissions of its owner, its group and everyone else: a set-user-ID, set-group-ID or sticky bit isn't kept.
+    private const UnixFileMode PermissionBits = (UnixFileMode)0x1FF;
+
+    // What the archive unpacks to, entries and their headers, is bounded too, so that no header can make it read without end.
+    // A header is 512 bytes, padding up to 511 more; a long name takes an extra header of its own.
+    private TarReader OpenTarGz(string archive, PlatformRelease release)
+    {
+        var limit = options.MaxExtractedBytes + (options.MaxEntries + 2L) * 4096;
+        var gzip = new GZipStream(File.OpenRead(archive), CompressionMode.Decompress);
+        return new TarReader(new BoundedStream(gzip, limit, () => new PlatformInstallException(InstallFailure.TooLarge,
+            $"{release.ArchiveName} unpacks to more than {limit} bytes, entries and headers, where {options.MaxExtractedBytes} is the most for its files.")));
+    }
+
+    // Where an entry is unpacked: a folder or a file inside the root, never a link, nor anything outside it.
+    private static string TargetOf(TarEntry entry, string root, PlatformRelease release)
+    {
+        if (entry.EntryType is TarEntryType.SymbolicLink or TarEntryType.HardLink)
+        {
+            throw NotAPlatform(release, $"its entry {entry.Name} is a link, which a platform doesn't have");
+        }
+
+        if (entry.EntryType is not (TarEntryType.Directory or TarEntryType.RegularFile or TarEntryType.V7RegularFile))
+        {
+            throw NotAPlatform(release, $"its entry {entry.Name} is neither a folder nor a file, but a {entry.EntryType}");
+        }
+
+        var target = Path.GetFullPath(Path.Combine(root, entry.Name));
+        var comparison = OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal;
+        var inside = target.StartsWith(root + Path.DirectorySeparatorChar, comparison)
+            || (entry.EntryType == TarEntryType.Directory && Path.TrimEndingDirectorySeparator(target).Equals(root, comparison));
+        if (Path.IsPathRooted(entry.Name) || !inside)
+        {
+            throw NotAPlatform(release, $"its entry {entry.Name} would land outside the platform");
+        }
+
+        return target;
+    }
+
+    private static PlatformInstallException Unpackable(PlatformRelease release, Exception inner) =>
+        new(InstallFailure.NotAPlatform, $"{release.ArchiveName} can't be unpacked: {inner.Message}", inner);
 
     private static void EnsurePlatform(string root, PlatformRelease release)
     {

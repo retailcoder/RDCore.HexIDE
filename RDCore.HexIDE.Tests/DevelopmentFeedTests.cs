@@ -60,7 +60,7 @@ public sealed class DevelopmentFeedTests : IDisposable
     }
 
     private PlatformInstaller.PlatformInstaller Installer() => new(
-        new PlatformInstallerOptions { Root = Path.Combine(folder, "installed"), Channel = ReleaseChannel.Preview },
+        new PlatformInstallerOptions { Root = Path.Combine(folder, "installed"), Channel = ReleaseChannel.Preview, RuntimeIdentifier = "win-x64" },
         new HttpClient(new DevelopmentFeed(Feed)));
 
     [TestMethod]

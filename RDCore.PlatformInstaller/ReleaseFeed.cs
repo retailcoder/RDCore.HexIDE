@@ -85,8 +85,10 @@ public sealed class ReleaseFeed(HttpClient http, PlatformInstallerOptions option
             return null;
         }
 
-        // The zip is named by the platform manifest's version and the runtime identifier it was built for.
-        var archiveSuffix = $"-{options.RuntimeIdentifier}.zip";
+        // The archive is named by the platform manifest's version and the runtime identifier it was built for: a zip for
+        // Windows, a tar.gz for Linux and macOS.
+        var zipSuffix = $"-{options.RuntimeIdentifier}.zip";
+        var tarGzSuffix = $"-{options.RuntimeIdentifier}.tar.gz";
         (Uri Url, long Size)? archive = null;
         Uri? checksums = null;
         foreach (var asset in assets.EnumerateArray())
@@ -101,18 +103,19 @@ public sealed class ReleaseFeed(HttpClient http, PlatformInstallerOptions option
             {
                 checksums = url;
             }
-            else if (name.StartsWith("rdcore-", StringComparison.Ordinal) && name.EndsWith(archiveSuffix, StringComparison.Ordinal))
+            else if (name.StartsWith("rdcore-", StringComparison.Ordinal)
+                && (name.EndsWith(zipSuffix, StringComparison.Ordinal) || name.EndsWith(tarGzSuffix, StringComparison.Ordinal)))
             {
                 archive = (url, asset.TryGetProperty("size", out var size) ? size.GetInt64() : 0);
             }
         }
 
-        if (archive is not { } zip || checksums is null || !Trusted(zip.Url) || !Trusted(checksums))
+        if (archive is not { } platform || checksums is null || !Trusted(platform.Url) || !Trusted(checksums))
         {
             return null;
         }
 
-        return (new PlatformRelease(version, zip.Url, zip.Size, checksums), prerelease);
+        return (new PlatformRelease(version, platform.Url, platform.Size, checksums), prerelease);
     }
 
     private bool Trusted(Uri url) =>
