@@ -28,12 +28,12 @@ RDCore est en développement **pré-alpha** actif, et cet add-in avec lui. Il fo
 
 Quand un projet RDCore s'ouvre, ou qu'une exécution démarre, l'add-in cherche la plateforme de RDCore dans cet ordre :
 
-1. Le réglage `platformRoot`, s'il est réglé : un RDCore que vous avez choisi, ou un build de développement (voir [Réglages de développement](#réglages-de-développement)).
+1. Le réglage `platformRoot`, s'il est défini : un RDCore que vous avez choisi, ou un build de développement (voir [Réglages de développement](#réglages-de-développement)).
 2. La plateforme en usage dans le dossier de RDCore de vos données d'application locales (`%LOCALAPPDATA%\RDCore\Platform` sous Windows), que partagent l'installateur de l'add-in et la commande `rdc install` de RDCore.
 3. Une commande `rdc` dans votre PATH, hors de ce dossier, comme en laisse une archive de publication décompressée. L'add-in demande s'il faut l'utiliser, installer RDCore à la place, ou en localiser un autre.
 4. Sinon, la publication la plus récente, téléchargée depuis les publications GitHub de RDCore une fois que vous l'acceptez, ou un RDCore que vous localisez à la place.
 
-Un RDCore que l'add-in utilise doit être bâti pour votre poste, avec un RDCore.SDK compatible avec celui de l'add-in, comme le dit son `release.json` : les mêmes versions majeure et mineure avant 1.0, et la même version majeure à partir de 1.0. Un RDCore trouvé ou localisé qui ne l'est pas n'est pas utilisé, et un RDCore que vous avez choisi est vérifié de nouveau à chaque démarrage.
+Un RDCore trouvé dans votre PATH, ou que vous localisez, n'est utilisé que s'il a été bâti pour votre poste, avec un RDCore.SDK compatible avec celui de l'add-in, comme le dit son `release.json` : les mêmes versions majeure et mineure avant 1.0, et la même version majeure à partir de 1.0. Un RDCore que vous avez choisi est vérifié de nouveau à chaque démarrage : s'il ne convient plus à l'add-in, l'add-in le dit et en cherche un autre.
 
 L'add-in installe RDCore dans ce dossier, et ajoute sa commande `rdc` à votre PATH. Il ne met pas à jour un RDCore que vous avez choisi : l'utiliser enregistre son dossier comme votre réglage `platformRoot`. Rien n'est installé tant qu'un RDCore déjà sur le poste est en usage : il n'y en a donc jamais une deuxième copie.
 
