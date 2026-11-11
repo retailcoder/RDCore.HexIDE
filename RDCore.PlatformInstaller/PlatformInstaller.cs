@@ -69,6 +69,9 @@ public sealed class PlatformInstaller
         }
     }
 
+    /// <summary>The folder the installer owns, <see cref="PlatformInstallerOptions.Root"/>.</summary>
+    public string Root => options.Root;
+
     /// <summary>Where <paramref name="version"/> is, or would be, deployed.</summary>
     public string VersionRoot(PlatformVersion version) => Path.Combine(options.Root, VersionsFolder, version.Text);
 
@@ -382,7 +385,7 @@ public sealed class PlatformInstaller
 
     // A platform root holds rdcore.json at its top, and the language server where that names it, inside the root: why the
     // folder isn't one, or null when it is.
-    private static (string Why, Exception? Inner)? Flaw(string root)
+    internal static (string Why, Exception? Inner)? Flaw(string root)
     {
         var manifestPath = Path.Combine(root, "rdcore.json");
         if (!File.Exists(manifestPath))

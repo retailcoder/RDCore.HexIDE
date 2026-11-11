@@ -60,7 +60,8 @@ public sealed class RDCoreServerTests : IDisposable
             Channel = ReleaseChannel.Preview,
             RuntimeIdentifier = "win-x64",
         }, new HttpClient(github ?? new FakeGitHub()));
-        return new RDCoreServer(host, new PlatformSource(new AddinSettings { PlatformRoot = platformRoot }, installer, prompts), prompts);
+        return new RDCoreServer(host, new PlatformSource(new AddinSettings { PlatformRoot = platformRoot }, Path.Combine(folder, "settings.json"),
+            installer, prompts, new FakeMachine()), prompts);
     }
 
     [TestMethod]

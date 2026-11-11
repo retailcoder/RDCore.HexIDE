@@ -40,7 +40,7 @@ public sealed class RDCoreAddin : IAddin
                 SdkVersion = AddinSettings.SdkVersion,
             }, http);
         // One source, so the server and a run share the one question and its answer.
-        var platform = new PlatformSource(settings, installer, prompts);
+        var platform = new PlatformSource(settings, AddinSettings.DefaultPath, installer, prompts, new Machine());
         server = new RDCoreServer(host, platform, prompts);
         debugLaunchRegistration = host.RegisterDebugLaunch(new RDCoreDebugLaunch(platform).Launch);
 
