@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using RDCore.HexIDE.Resources;
+using RDCore.SDK.Platform;
 
 namespace RDCore.HexIDE.Platform;
 
@@ -40,7 +41,7 @@ internal static class Failures
     public static string Unusable(Exception failure) => failure switch
     {
         DirectoryNotFoundException => Strings.FolderMissing,
-        FileNotFoundException missing when string.Equals(Path.GetFileName(missing.FileName), "rdcore.json", StringComparison.OrdinalIgnoreCase)
+        FileNotFoundException missing when string.Equals(Path.GetFileName(missing.FileName), PlatformManifest.FileName, StringComparison.OrdinalIgnoreCase)
             => Strings.NoManifest,
         FileNotFoundException => Strings.LanguageServerMissing,
         InvalidDataException => Strings.ManifestUnusable,

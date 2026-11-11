@@ -43,7 +43,7 @@ public sealed class PlatformSourceTests : IDisposable
         Directory.Delete(choice.Root, recursive: true);
 
         // A newer release came out meanwhile: the server's launch still names 0.1.0, so 0.1.0 is what comes back.
-        await Source(new FakeGitHub().Release("v0.1.0").Release("v0.2.0")).EnsureStillThereAsync(choice, LanguageServer(choice), TestContext.CancellationToken);
+        await Source(new FakeGitHub().Release("v0.1.0").Release("v0.2.0")).EnsureStillThereAsync(choice, TestContext.CancellationToken);
 
         Assert.IsTrue(File.Exists(Path.Combine(choice.Root, "rdcore.json")));
         Assert.AreEqual(2, prompts.Asked.Count, "asked again before downloading it again");
@@ -59,7 +59,7 @@ public sealed class PlatformSourceTests : IDisposable
         Directory.Delete(choice.Root, recursive: true);
         prompts.Answer = false;
 
-        await Assert.ThrowsExactlyAsync<InvalidOperationException>(() => source.EnsureStillThereAsync(choice, LanguageServer(choice), TestContext.CancellationToken));
+        await Assert.ThrowsExactlyAsync<InvalidOperationException>(() => source.EnsureStillThereAsync(choice, TestContext.CancellationToken));
 
         Assert.AreEqual(2, prompts.Asked.Count, "the user was asked again, and said no this time");
         Assert.IsFalse(Directory.Exists(choice.Root));
@@ -73,12 +73,12 @@ public sealed class PlatformSourceTests : IDisposable
         Directory.Delete(choice.Root, recursive: true);
 
         var taken = await Assert.ThrowsExactlyAsync<InvalidOperationException>(() =>
-            Source(new FakeGitHub().Release("v0.2.0")).EnsureStillThereAsync(choice, LanguageServer(choice), TestContext.CancellationToken));
+            Source(new FakeGitHub().Release("v0.2.0")).EnsureStillThereAsync(choice, TestContext.CancellationToken));
         Assert.AreEqual(Strings.VersionGone("0.1.0"), taken.Message);
 
         prompts.Answer = false;
         var declined = await Assert.ThrowsExactlyAsync<InvalidOperationException>(() =>
-            Source(new FakeGitHub().Release("v0.1.0")).EnsureStillThereAsync(choice, LanguageServer(choice), TestContext.CancellationToken));
+            Source(new FakeGitHub().Release("v0.1.0")).EnsureStillThereAsync(choice, TestContext.CancellationToken));
         Assert.AreEqual(Strings.PlatformGone("0.1.0"), declined.Message);
     }
 
@@ -90,7 +90,7 @@ public sealed class PlatformSourceTests : IDisposable
 
         var choice = new PlatformChoice(missing, null);
         await Assert.ThrowsExactlyAsync<InvalidOperationException>(() =>
-            Source(github, missing).EnsureStillThereAsync(choice, LanguageServer(choice), TestContext.CancellationToken));
+            Source(github, missing).EnsureStillThereAsync(choice, TestContext.CancellationToken));
 
         Assert.AreEqual(0, github.Requests.Count);
     }
@@ -102,7 +102,7 @@ public sealed class PlatformSourceTests : IDisposable
         Assert.IsNotNull(choice);
         File.Delete(LanguageServer(choice));
 
-        await Source(new FakeGitHub().Release("v0.1.0")).EnsureStillThereAsync(choice, LanguageServer(choice), TestContext.CancellationToken);
+        await Source(new FakeGitHub().Release("v0.1.0")).EnsureStillThereAsync(choice, TestContext.CancellationToken);
 
         Assert.IsTrue(File.Exists(LanguageServer(choice)));
         Assert.AreEqual(2, prompts.Asked.Count, "asked again before downloading it again");
@@ -117,9 +117,24 @@ public sealed class PlatformSourceTests : IDisposable
         var choice = new PlatformChoice(root, null);
 
         var failed = await Assert.ThrowsExactlyAsync<InvalidOperationException>(() =>
-            Source(new FakeGitHub(), root).EnsureStillThereAsync(choice, LanguageServer(choice), TestContext.CancellationToken));
+            Source(new FakeGitHub(), root).EnsureStillThereAsync(choice, TestContext.CancellationToken));
 
         Assert.AreEqual(Strings.PlatformRootUnusable(root, Strings.LanguageServerMissing), failed.Message);
+    }
+
+    [TestMethod]
+    public async Task A_development_root_whose_manifest_is_not_one_is_not_whole_though_its_language_server_is_there()
+    {
+        var root = Path.Combine(folder, "rdcore-dev");
+        var choice = new PlatformChoice(root, null);
+        Directory.CreateDirectory(Path.GetDirectoryName(LanguageServer(choice))!);
+        File.WriteAllText(LanguageServer(choice), "");
+        File.WriteAllText(Path.Combine(root, "rdcore.json"), "not a manifest");
+
+        var failed = await Assert.ThrowsExactlyAsync<InvalidOperationException>(() =>
+            Source(new FakeGitHub(), root).EnsureStillThereAsync(choice, TestContext.CancellationToken));
+
+        Assert.AreEqual(Strings.PlatformRootUnusable(root, Strings.ManifestUnusable), failed.Message);
     }
 
     // Where a platform's zip has its language server, which is where the server's launch names it.
@@ -172,7 +187,7 @@ public sealed class PlatformSourceTests : IDisposable
         Directory.Delete(choice.Root, recursive: true);
 
         var failed = await Assert.ThrowsExactlyAsync<InvalidOperationException>(() =>
-            Source(new Throwing(new InvalidOperationException("Sequence contains no elements."))).EnsureStillThereAsync(choice, LanguageServer(choice), TestContext.CancellationToken));
+            Source(new Throwing(new InvalidOperationException("Sequence contains no elements."))).EnsureStillThereAsync(choice, TestContext.CancellationToken));
 
         Assert.AreEqual(Strings.InstallFailed(Strings.UnexpectedFailure(nameof(InvalidOperationException))), failed.Message);
     }
