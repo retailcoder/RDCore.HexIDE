@@ -39,7 +39,7 @@ L'add-in installe RDCore dans ce dossier, et ajoute sa commande `rdc` à votre P
 
 ## La signature de l'éditeur
 
-L'add-in publié est signé avec la clé d'éditeur de RDCore. HexIDE affiche l'empreinte de la clé qui a signé un add-in à la ligne **Publisher** de sa vue de confiance des add-ins (**Tools → Options → Add-Ins**). L'empreinte de la clé d'éditeur de RDCore est :
+L'add-in publié est signé avec la clé d'éditeur de RDCore. HexIDE affiche l'empreinte de la clé qui a signé un add-in à la ligne **Éditeur** de sa vue de confiance des add-ins (**Outils → Options → Modules complémentaires**). L'empreinte de la clé d'éditeur de RDCore est :
 
 ```
 85B8 053E D1A2 E466 F45A 7B03 B69E 13CA 4B98 46A2 9F55 A373 73D7 810B DC4F DFED
