@@ -37,6 +37,16 @@ An RDCore found on your PATH, or one you locate, is used only when it was built 
 
 The add-in installs RDCore in that folder, and puts its `rdc` command on your PATH. It doesn't update an RDCore you chose: using one saves its folder as your `platformRoot` setting. Nothing is installed while an RDCore already on the machine is in use, so there is never a second copy of it.
 
+## The publisher's signature
+
+The published add-in is signed with RDCore's publisher key. HexIDE's marketplace shows the fingerprint of the key that signed an add-in. For RDCore for HexIDE, it is:
+
+```
+85B8 053E D1A2 E466 F45A 7B03 B69E 13CA 4B98 46A2 9F55 A373 73D7 810B DC4F DFED
+```
+
+A package with any other fingerprint was not signed by RDCore: do not install it.
+
 ## Building
 
 From the repository root, with the .NET 10 SDK and PowerShell 7:
@@ -49,7 +59,7 @@ dotnet test RDCore.HexIDE.slnx
 
 `Get-Dependencies.ps1` fetches the sources the add-in builds against, at the versions `tools/dependencies.json` pins, into `deps/`: HexIDE's add-in contract (`HexIDE.Core`). The RDCore.SDK package comes from nuget.org.
 
-`pwsh tools/Pack-Addin.ps1` lays the add-in out as a HexIDE add-in package in `artifacts/addins/rdcore/`: copy that folder into the `addins` folder beside HexIDE's executable. The package is unsigned for now, so HexIDE loads it only in developer mode with unsigned add-ins allowed.
+`pwsh tools/Pack-Addin.ps1` lays the add-in out as a HexIDE add-in package in `artifacts/addins/rdcore/`: copy that folder into the `addins` folder beside HexIDE's executable. A package you pack yourself is unsigned, so HexIDE loads it only in developer mode with unsigned add-ins allowed.
 
 ### Development settings
 
