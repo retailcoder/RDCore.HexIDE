@@ -39,7 +39,7 @@ The add-in installs RDCore in that folder, and puts its `rdc` command on your PA
 
 ## The publisher's signature
 
-The published add-in is signed with RDCore's publisher key. HexIDE's marketplace shows the fingerprint of the key that signed an add-in. For RDCore for HexIDE, it is:
+The published add-in is signed with RDCore's publisher key. HexIDE's marketplace shows the fingerprint of the key that signed an add-in. The fingerprint of RDCore's publisher key is:
 
 ```
 85B8 053E D1A2 E466 F45A 7B03 B69E 13CA 4B98 46A2 9F55 A373 73D7 810B DC4F DFED
