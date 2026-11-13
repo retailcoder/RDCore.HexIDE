@@ -36,7 +36,7 @@
 
   <!-- the version of the RDCore.SDK package from nuget.org: the add-in talks to the platform through its RDCore.SDK.Protocol assembly. -->
   <PropertyGroup>
-    <RDCoreSdkVersion>0.1.2-alpha</RDCoreSdkVersion>
+    <RDCoreSdkVersion>0.1.3-alpha</RDCoreSdkVersion>
   </PropertyGroup>
 
   <!-- the sources the add-in builds against until they are packages. tools/Get-Dependencies.ps1 fetches them into deps/, at the
