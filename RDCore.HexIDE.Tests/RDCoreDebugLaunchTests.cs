@@ -13,7 +13,7 @@ namespace RDCore.HexIDE.Tests;
 [TestClass]
 public sealed class RDCoreDebugLaunchTests : IDisposable
 {
-    private readonly string folder = Path.Combine(Path.GetTempPath(), "rdcore-addin-" + Guid.NewGuid().ToString("N"));
+    private readonly string folder = TempFolders.New("rdcore-addin-");
     private readonly Prompts prompts = new();
 
     public TestContext TestContext { get; set; } = null!;

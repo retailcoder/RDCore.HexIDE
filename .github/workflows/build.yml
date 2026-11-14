@@ -13,10 +13,12 @@ jobs:
   # HexIDE's add-in contract and its UI (Avalonia) are cross-platform, so everything builds and tests on Linux. The platform
   # RDCore.PlatformInstaller deploys is a zip on Windows and a tar.gz on Linux and macOS, and both are tested on each system;
   # the tests of what only Windows does on disk, refusing to rename a folder with a file open in it, run on Windows only.
+  # linux-x64, win-x64 and osx-x64 (macos-15-intel, GitHub's Intel image) run for every push and pull request; osx-arm64
+  # (macos-latest) runs on main only, where it is too slow to hold work up.
   strategy:
    fail-fast: false
    matrix:
-    os: [ubuntu-latest, windows-latest]
+    os: ${{ fromJSON(github.event_name == 'push' && github.ref == 'refs/heads/main' && '["ubuntu-latest", "windows-latest", "macos-15-intel", "macos-latest"]' || '["ubuntu-latest", "windows-latest", "macos-15-intel"]') }}
   runs-on: ${{ matrix.os }}
 
   steps:
