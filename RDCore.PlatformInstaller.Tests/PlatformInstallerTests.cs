@@ -6,7 +6,7 @@ namespace RDCore.PlatformInstaller.Tests;
 [TestClass]
 public sealed class PlatformInstallerTests : IDisposable
 {
-    private readonly string root = Path.Combine(Path.GetTempPath(), "rdcore-installer-" + Guid.NewGuid().ToString("N"));
+    private readonly string root = TempFolders.New("rdcore-installer-");
 
     public TestContext TestContext { get; set; } = null!;
 

@@ -5,7 +5,7 @@ namespace RDCore.PlatformInstaller.Tests;
 [TestClass]
 public sealed class PlatformFolderTests : IDisposable
 {
-    private readonly string root = Path.Combine(Path.GetTempPath(), "rdcore-folder-" + Guid.NewGuid().ToString("N"));
+    private readonly string root = TempFolders.New("rdcore-folder-");
 
     public void Dispose()
     {
