@@ -11,7 +11,7 @@ public sealed class ExistingPlatformTests : IDisposable
 {
     private static readonly string Rdc = OperatingSystem.IsWindows() ? "rdc.exe" : "rdc";
 
-    private readonly string folder = Path.Combine(Path.GetTempPath(), "rdcore-existing-" + Guid.NewGuid().ToString("N"));
+    private readonly string folder = TempFolders.New("rdcore-existing-");
     private readonly Prompts prompts = new() { Answer = true };
     private readonly FakeMachine machine = new();
 

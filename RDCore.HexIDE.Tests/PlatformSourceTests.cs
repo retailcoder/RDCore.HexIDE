@@ -11,7 +11,7 @@ namespace RDCore.HexIDE.Tests;
 [TestClass]
 public sealed class PlatformSourceTests : IDisposable
 {
-    private readonly string folder = Path.Combine(Path.GetTempPath(), "rdcore-source-" + Guid.NewGuid().ToString("N"));
+    private readonly string folder = TempFolders.New("rdcore-source-");
     private readonly Prompts prompts = new() { Answer = true };
 
     public TestContext TestContext { get; set; } = null!;

@@ -9,7 +9,7 @@ namespace RDCore.HexIDE.Tests;
 [TestClass]
 public sealed class DevelopmentFeedTests : IDisposable
 {
-    private readonly string folder = Path.Combine(Path.GetTempPath(), "rdcore-feed-" + Guid.NewGuid().ToString("N"));
+    private readonly string folder = TempFolders.New("rdcore-feed-");
 
     public TestContext TestContext { get; set; } = null!;
 

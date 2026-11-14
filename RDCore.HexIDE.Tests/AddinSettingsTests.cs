@@ -1,5 +1,6 @@
 using System.Reflection;
 using RDCore.PlatformInstaller;
+using RDCore.PlatformInstaller.Tests;
 using RDCore.SDK.Client;
 using RDCore.SDK.Platform;
 
@@ -8,7 +9,7 @@ namespace RDCore.HexIDE.Tests;
 [TestClass]
 public sealed class AddinSettingsTests : IDisposable
 {
-    private readonly string path = Path.Combine(Path.GetTempPath(), "rdcore-settings-" + Guid.NewGuid().ToString("N") + ".json");
+    private readonly string path = TempFolders.New("rdcore-settings-") + ".json";
 
     public void Dispose() => File.Delete(path);
 

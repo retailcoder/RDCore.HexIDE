@@ -15,7 +15,7 @@ namespace RDCore.HexIDE.Tests;
 [TestClass]
 public sealed class RDCoreServerTests : IDisposable
 {
-    private readonly string folder = Path.Combine(Path.GetTempPath(), "rdcore-addin-" + Guid.NewGuid().ToString("N"));
+    private readonly string folder = TempFolders.New("rdcore-addin-");
     private readonly IHexIdeHost host = Substitute.For<IHexIdeHost>();
     private readonly IAddinServerConnection connection = Substitute.For<IAddinServerConnection>();
     private readonly Prompts prompts = new();

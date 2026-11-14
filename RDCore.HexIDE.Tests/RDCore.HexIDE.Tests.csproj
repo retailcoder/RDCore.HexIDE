@@ -23,6 +23,7 @@
 
   <ItemGroup>
     <Compile Include="..\RDCore.PlatformInstaller.Tests\FakeGitHub.cs" Link="FakeGitHub.cs" />
+    <Compile Include="..\RDCore.PlatformInstaller.Tests\TempFolders.cs" Link="TempFolders.cs" />
   </ItemGroup>
 
   <ItemGroup>
