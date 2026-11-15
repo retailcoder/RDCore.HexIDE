@@ -1,6 +1,7 @@
 using HexIDE.Addins;
 using RDCore.HexIDE.Projects;
 using RDCore.HexIDE.Resources;
+using RDCore.PlatformInstaller.Tests;
 
 namespace RDCore.HexIDE.Tests;
 
@@ -8,7 +9,7 @@ namespace RDCore.HexIDE.Tests;
 public sealed class RDProjectTests : IDisposable
 {
     // The project's folder is in a folder of its own, where a test puts what is outside the project; both go with the test.
-    private readonly string container = Path.Combine(Path.GetTempPath(), "rdcore-rdproj-" + Guid.NewGuid().ToString("N"));
+    private readonly string container = TempFolders.New("rdcore-rdproj-");
     private readonly string root;
     private readonly List<string> told = [];
 
