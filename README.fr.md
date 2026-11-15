@@ -59,7 +59,7 @@ dotnet test RDCore.HexIDE.slnx
 
 `Get-Dependencies.ps1` récupère dans `deps/` les sources contre lesquelles l'add-in est bâti, aux versions que fixe `tools/dependencies.json` : le contrat d'add-in de HexIDE (`HexIDE.Core`). Le paquet RDCore.SDK provient de nuget.org.
 
-`pwsh tools/Pack-Addin.ps1` dispose l'add-in en paquet d'add-in HexIDE dans `artifacts/addins/rdcore/` : copiez ce dossier dans le dossier `addins` à côté de l'exécutable de HexIDE. Un paquet que vous disposez vous-même n'est pas signé : HexIDE ne le charge donc qu'en mode développeur, avec les add-ins non signés permis.
+`pwsh tools/Pack-Addin.ps1` dispose l'add-in en paquet d'add-in HexIDE dans `artifacts/addins/rdcore/` : copiez ce dossier dans le dossier `addins` à côté de l'exécutable de HexIDE. Un paquet que vous disposez vous-même n'est pas signé : HexIDE ne le charge donc qu'en mode développeur, avec les add-ins non signés permis. Le logo du paquet est le canard, `assets/ducky.png` : HexIDE l'affiche dans la page d'options de l'add-in une fois le paquet signé, et affiche sa propre image par défaut pour un paquet non signé.
 
 ### Réglages de développement
 

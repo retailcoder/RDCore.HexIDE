@@ -8,39 +8,50 @@
     RDCore's publisher record and the package is signed with HexIDE's packer. Its manifest lists every file with its SHA-256,
     which HexIDE needs even then: an add-in's own assemblies load only from the files its manifest lists.
 
+    The package carries the duck, assets/ducky.png, as its logo: the manifest's logoPath names it, and its files list it.
+    HexIDE shows a signed package's logo on the add-in's options page; an unsigned package shows HexIDE's placeholder.
+
     Copy the folder into the addins folder beside HexIDE's executable to install it.
 #>
 [CmdletBinding()]
 param(
     [ValidateSet('Debug', 'Release')]
     [string] $Configuration = 'Release',
-    [string] $Destination = (Join-Path $PSScriptRoot '..' 'artifacts' 'addins' 'rdcore')
+    [string] $Destination = (Join-Path $PSScriptRoot '..' 'artifacts' 'addins' 'rdcore'),
+    # A folder the add-in is already published to (dotnet publish's output), packed as it is: the add-in is not built.
+    [string] $Published
 )
 
 $ErrorActionPreference = 'Stop'
 $repository = Resolve-Path (Join-Path $PSScriptRoot '..')
 $project = Join-Path $repository 'RDCore.HexIDE' 'RDCore.HexIDE.csproj'
+$logo = Join-Path $repository 'assets' 'ducky.png'
+$logoPath = 'ducky.png'
 
-$published = Join-Path ([IO.Path]::GetTempPath()) ("rdcore-addin-" + [guid]::NewGuid().ToString('N'))
-dotnet publish $project --configuration $Configuration --output $published --nologo -v q
-if ($LASTEXITCODE -ne 0) { throw "dotnet publish failed with exit code $LASTEXITCODE." }
+$publishes = -not $Published
+if ($publishes) {
+    $Published = Join-Path ([IO.Path]::GetTempPath()) ("rdcore-addin-" + [guid]::NewGuid().ToString('N'))
+    dotnet publish $project --configuration $Configuration --output $Published --nologo -v q
+    if ($LASTEXITCODE -ne 0) { throw "dotnet publish failed with exit code $LASTEXITCODE." }
+}
 
 try {
     if (Test-Path $Destination) { Remove-Item $Destination -Recurse -Force }
     New-Item -ItemType Directory -Force $Destination | Out-Null
     # The add-in ships RDCore's own assemblies and their resources, and nothing else: HexIDE shares its own, Avalonia and
     # everything Avalonia depends on included, and anything new a dependency drags in is left out rather than shipped unseen.
-    $shipped = Get-ChildItem $published -Recurse -File |
+    $shipped = Get-ChildItem $Published -Recurse -File |
         Where-Object { $_.Extension -in '.dll', '.pdb', '.xml' -and $_.Name -like 'RDCore.*' }
-    $left = Get-ChildItem $published -Recurse -File -Filter *.dll | Where-Object { $_.Name -notlike 'RDCore.*' }
+    $left = Get-ChildItem $Published -Recurse -File -Filter *.dll | Where-Object { $_.Name -notlike 'RDCore.*' }
     if ($left) { Write-Host "Not shipped, as HexIDE has its own: $(($left | ForEach-Object Name | Sort-Object -Unique) -join ', ')" }
     $shipped |
         ForEach-Object {
-            $relative = [IO.Path]::GetRelativePath($published, $_.FullName)
+            $relative = [IO.Path]::GetRelativePath($Published, $_.FullName)
             $target = Join-Path $Destination $relative
             New-Item -ItemType Directory -Force (Split-Path $target) | Out-Null
             Copy-Item $_.FullName $target
         }
+    Copy-Item $logo (Join-Path $Destination $logoPath)
 
     $assembly = Join-Path $Destination 'RDCore.HexIDE.dll'
     $version = [Diagnostics.FileVersionInfo]::GetVersionInfo($assembly).ProductVersion.Split('+')[0]
@@ -60,11 +71,12 @@ try {
         publisherId  = 'rubberduck-vba'
         entry        = 'RDCore.HexIDE.dll'
         capabilities = @('languageServer.contribute')
+        logoPath     = $logoPath
         files        = @($files)
     }
     $manifest | ConvertTo-Json -Depth 4 | Set-Content (Join-Path $Destination 'addin.json') -Encoding utf8NoBOM
     Write-Host "RDCore for HexIDE $version is in $Destination ($($files.Count) files, unsigned)."
 }
 finally {
-    Remove-Item $published -Recurse -Force -ErrorAction SilentlyContinue
+    if ($publishes) { Remove-Item $Published -Recurse -Force -ErrorAction SilentlyContinue }
 }
