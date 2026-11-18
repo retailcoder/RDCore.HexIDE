@@ -92,6 +92,8 @@ internal sealed class RDCoreServer(IHexIdeHost host, PlatformSource platform, IU
 
         var channel = new ConnectionChannel();
         var client = new RDCorePlatformClient(channel);
+        // Answered from the start, as the handshake says the add-in expects it.
+        client.OnListSettingValue(new SettingsLists(() => connection).ApplyAsync);
         try
         {
             connection = host.RegisterLanguageServer(new AddinLanguageServer(Entry(launch))
@@ -102,7 +104,7 @@ internal sealed class RDCoreServer(IHexIdeHost host, PlatformSource platform, IU
                 {
                     channel.Connect(current);
                     await client.InitializeAsync(CoreServerComponent.LanguageServer,
-                        new CorePlatformClientCapabilities { LanguageServer = new() }, token);
+                        new CorePlatformClientCapabilities { LanguageServer = new() { ListSettingValue = new(IsSupported: true) } }, token);
                 },
                 MessagePrefix = "rdcore/",
                 ServerMethods = channel.ServerMethods,

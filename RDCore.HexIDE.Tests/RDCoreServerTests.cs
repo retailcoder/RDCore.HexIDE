@@ -92,6 +92,7 @@ public sealed class RDCoreServerTests : IDisposable
             {
                 RDCorePlatformProtocol.SessionMessageBox, RDCorePlatformProtocol.SessionInputBox,
                 RDCorePlatformProtocol.RubberduckIndenterSettings, RDCorePlatformProtocol.RubberduckIndenterSettingsApply,
+                RDCorePlatformProtocol.ListSettingValue,
             },
             registered.ServerMethods.Keys.ToArray(), "every server-to-client method RDCore's protocol has");
         Assert.AreSame(connection, server.Connection);
@@ -135,6 +136,50 @@ public sealed class RDCoreServerTests : IDisposable
 
         await connection.Received(1).RequestAsync(RDCorePlatformProtocol.PlatformInitialize, Arg.Any<JsonElement?>(),
             Timeout.InfiniteTimeSpan, Arg.Any<CancellationToken>());
+    }
+
+    // A code action that disables a diagnostic asks the add-in to list it, which it writes in the server's settings in HexIDE.
+    [TestMethod]
+    public async Task The_add_in_says_it_lists_a_setting_s_value_and_writes_the_server_s_settings_when_asked()
+    {
+        using var server = Server(BuiltPlatform());
+        await server.ProjectLoadedAsync(ProjectFile());
+        JsonElement? hello = null;
+        connection.RequestAsync(RDCorePlatformProtocol.PlatformInitialize, Arg.Do<JsonElement?>(sent => hello = sent?.Clone()), default, default)
+            .ReturnsForAnyArgs(JsonDocument.Parse("{}").RootElement);
+        JsonElement? stored = null;
+        connection.SetSettingsAsync(Arg.Do<JsonElement>(settings => stored = settings.Clone()), Arg.Any<CancellationToken>()).Returns(Task.CompletedTask);
+
+        await registered!.AfterStart!(connection, TestContext.CancellationToken);
+        var answer = await registered.ServerMethods[RDCorePlatformProtocol.ListSettingValue](
+            JsonDocument.Parse("""{ "key": "Analysis.DisabledDiagnostics", "value": "RDC01001", "scope": 0 }""").RootElement, TestContext.CancellationToken);
+
+        Assert.IsTrue(Property(hello!.Value, "listSettingValue") is { } capability && Property(capability, "isSupported")?.GetBoolean() == true,
+            hello.Value.GetRawText());
+        Assert.IsTrue(Property(answer!.Value, "applied")?.GetBoolean());
+        Assert.AreEqual("""{"rdcore":{"Analysis":{"DisabledDiagnostics":["RDC01001"]}}}""", stored?.GetRawText());
+    }
+
+    // The property of that name anywhere in the element, compared without regard to case.
+    private static JsonElement? Property(JsonElement element, string name)
+    {
+        if (element.ValueKind == JsonValueKind.Object)
+        {
+            foreach (var property in element.EnumerateObject())
+            {
+                if (string.Equals(property.Name, name, StringComparison.OrdinalIgnoreCase))
+                {
+                    return property.Value;
+                }
+
+                if (Property(property.Value, name) is { } found)
+                {
+                    return found;
+                }
+            }
+        }
+
+        return element.ValueKind == JsonValueKind.Array ? element.EnumerateArray().Select(item => Property(item, name)).FirstOrDefault(found => found is not null) : null;
     }
 
     [TestMethod]
