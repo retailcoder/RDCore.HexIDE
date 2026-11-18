@@ -83,6 +83,26 @@ public sealed class RDProjectTests : IDisposable
         CollectionAssert.AreEqual(new[] { "src", "src/Classes", "docs" }, project.Folders.ToArray());
     }
 
+    // A Visual Basic 6.0 designer's module is the form, UserControl or PropertyPage its designer block names. A VBA UserForm, another designer, and a
+    // designer block that isn't whole stay code modules, which HexIDE opens read-only.
+    [TestMethod]
+    [DataRow("VERSION 5.00\r\nBegin VB.Form Main\r\n   Caption = \"Main\"\r\nEnd\r\nAttribute VB_Name = \"Main\"\r\n", AddinMemberKind.Form)]
+    [DataRow("VERSION 5.00\r\nBegin VB.MDIForm Shell\r\nEnd\r\nAttribute VB_Name = \"Shell\"\r\n", AddinMemberKind.Form)]
+    [DataRow("VERSION 5.00\r\nBegin VB.UserControl Gauge\r\n   Begin VB.Label Value\r\n   End\r\nEnd\r\nAttribute VB_Name = \"Gauge\"\r\n", AddinMemberKind.UserControl)]
+    [DataRow("VERSION 5.00\r\nBegin VB.PropertyPage General\r\nEnd\r\nAttribute VB_Name = \"General\"\r\n", AddinMemberKind.PropertyPage)]
+    [DataRow("VERSION 5.00\r\nBegin VB.UserDocument Viewer\r\nEnd\r\nAttribute VB_Name = \"Viewer\"\r\n", AddinMemberKind.ClassModule)]
+    [DataRow("VERSION 5.00\r\nBegin {C62A69F0-16DC-11CE-9E98-00AA00574A4F} Entry\r\n   OleObjectBlob = \"Entry.frx\":0000\r\nEnd\r\nAttribute VB_Name = \"Entry\"\r\n", AddinMemberKind.ClassModule)]
+    [DataRow("VERSION 5.00\r\nBegin VB.Form Broken\r\n   Caption = \"Broken\"\r\nAttribute VB_Name = \"Broken\"\r\n", AddinMemberKind.ClassModule)]
+    public void A_designer_s_module_is_of_the_kind_its_designer_block_names(string source, AddinMemberKind kind)
+    {
+        Write("src/Main.frm", source);
+        WriteProject("""["src/Main.frm"]""");
+
+        var project = RDProject.Read(ProjectFile);
+
+        Assert.AreEqual(kind, project.Members.First().Kind);
+    }
+
     [TestMethod]
     public void A_member_or_folder_outside_the_project_s_folder_is_left_out()
     {
