@@ -16,7 +16,9 @@ namespace RDCore.HexIDE.Server;
 /// </remarks>
 internal sealed class SettingsLists(Func<IAddinServerConnection?> connection)
 {
-    /// <summary>The section of the server's settings RDCore's language server reads.</summary>
+    /// <summary>
+    /// The section of the server's settings RDCore's language server reads.
+    /// </summary>
     public const string Section = "rdcore";
 
     private static readonly ListSettingValueResult Declined = new() { Applied = false };
@@ -24,7 +26,12 @@ internal sealed class SettingsLists(Func<IAddinServerConnection?> connection)
 
     private readonly SemaphoreSlim changing = new(1, 1);
 
-    /// <summary>Adds the item to the list, or removes it, and says whether the list now holds it, or does not when it was to be removed.</summary>
+    /// <summary>
+    /// Adds the item to the list, or removes it from the list.
+    /// </summary>
+    /// <param name="request">The setting's key and scope, the item, and whether it is removed.</param>
+    /// <param name="token">Cancels the change, and the wait for an earlier one to finish.</param>
+    /// <returns>Applied where the list now holds the item, or no longer holds it when it was removed; declined otherwise.</returns>
     public async Task<ListSettingValueResult> ApplyAsync(ListSettingValueParams request, CancellationToken token)
     {
         var path = $"{Section}.{request.Key}".Split('.');
