@@ -260,7 +260,7 @@ public sealed class RDProjectTests : IDisposable
         using var type = new RDCoreProjectType(new Prompts(), time);
         var changes = new Changes();
 
-        var content = await type.Type.OpenAsync(ProjectFile, changes, TestContext.CancellationToken);
+        var content = await type.Type.OpenAsync!(ProjectFile, changes, TestContext.CancellationToken);
         Assert.AreEqual("Ledger", content.Name);
         Assert.AreEqual(1, type.Watching);
 
@@ -286,7 +286,7 @@ public sealed class RDProjectTests : IDisposable
         var changes = new Changes();
         changes.Close();
 
-        await type.Type.OpenAsync(ProjectFile, changes, TestContext.CancellationToken);
+        await type.Type.OpenAsync!(ProjectFile, changes, TestContext.CancellationToken);
 
         Assert.AreEqual(0, type.Watching);
     }
@@ -299,7 +299,7 @@ public sealed class RDProjectTests : IDisposable
         type.Dispose();
 
         await Assert.ThrowsExactlyAsync<ObjectDisposedException>(
-            () => type.Type.OpenAsync(ProjectFile, new Changes(), TestContext.CancellationToken));
+            () => type.Type.OpenAsync!(ProjectFile, new Changes(), TestContext.CancellationToken));
 
         Assert.AreEqual(0, type.Watching);
     }
