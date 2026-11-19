@@ -29,14 +29,6 @@ internal sealed record RDProject(string Name, IReadOnlyList<RDProjectMember> Mem
         Folders = Folders,
     };
 
-    /// <summary>How the file system tells two paths apart: whatever their case on Windows, by their case elsewhere.</summary>
-    /// <remarks>
-    /// It goes by the operating system, not by the disk. Windows folders can be made case-sensitive and macOS disks are
-    /// case-insensitive by default, and there <c>a.bas</c> and <c>A.bas</c> name one file the add-in counts as two members:
-    /// HexIDE then lists the file twice, which is wrong but harmless.
-    /// </remarks>
-    internal static StringComparer PathComparer => OperatingSystem.IsWindows() ? StringComparer.OrdinalIgnoreCase : StringComparer.Ordinal;
-
     /// <summary>Reads the project file at <paramref name="path"/>.</summary>
     /// <exception cref="InvalidDataException">It isn't a project file.</exception>
     /// <exception cref="IOException">It can't be read.</exception>
@@ -57,8 +49,10 @@ internal sealed record RDProject(string Name, IReadOnlyList<RDProjectMember> Mem
 
         var project = file.ProjectInfo;
         var name = string.IsNullOrWhiteSpace(project.Name) ? System.IO.Path.GetFileName(root) : project.Name;
-        // A file the project lists twice, under any spelling of its path, is one member: the first the file lists.
-        var listed = new HashSet<string>(PathComparer);
+        // A file the project lists twice, under any spelling of its path, is one member: the first the file lists. Paths compare as the
+        // platform compares them (WorkspacePaths), by the operating system and not by the disk: on a case-insensitive macOS disk, a.bas
+        // and A.bas are two members, which HexIDE lists twice, wrong but harmless.
+        var listed = new HashSet<string>(WorkspacePaths.Comparer);
         List<RDProjectMember> members = [];
         foreach (var module in project.Modules)
         {
@@ -97,8 +91,7 @@ internal sealed record RDProject(string Name, IReadOnlyList<RDProjectMember> Mem
         var full = System.IO.Path.GetFullPath(System.IO.Path.Combine(root,
             relative.Replace('\\', System.IO.Path.DirectorySeparatorChar).Replace('/', System.IO.Path.DirectorySeparatorChar)));
         var prefix = System.IO.Path.TrimEndingDirectorySeparator(root) + System.IO.Path.DirectorySeparatorChar;
-        var comparison = OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal;
-        return full.StartsWith(prefix, comparison) ? full : null;
+        return full.StartsWith(prefix, WorkspacePaths.Comparison) ? full : null;
     }
 
     /// <summary>What a module is, by the platform's own rule (<see cref="ProjectModuleKinds"/>), as HexIDE names it.</summary>

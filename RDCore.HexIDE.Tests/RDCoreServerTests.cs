@@ -84,7 +84,8 @@ public sealed class RDCoreServerTests : IDisposable
             $"a pipe name the platform makes, short enough for a macOS socket path: {entry.PipeName}");
         CollectionAssert.AreEqual(
             new[] { "--pipe-name", "{pipe}", "--workspace", "{workspaceUri}", "--client-process-id", "{pid}" }, entry.Arguments!.List);
-        CollectionAssert.AreEquivalent(new[] { ".bas", ".cls", ".frm", ".doccls" }, entry.Extensions);
+        // RD-VBA's modules, the code of an RDForms form among them.
+        CollectionAssert.AreEquivalent(new[] { ".bas", ".cls", ".frm", ".doccls", ".rdform" }, entry.Extensions);
         Assert.AreEqual(RDCoreServer.BeforeLaunchTimeout, registered.BeforeLaunchTimeout);
         Assert.AreEqual("rdcore/", registered.MessagePrefix);
         CollectionAssert.AreEquivalent(
