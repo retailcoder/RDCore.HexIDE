@@ -14,6 +14,10 @@ namespace RDCore.HexIDE.Server;
 /// HexIDE gives a command its arguments only, so each runs on the registration's connection, as it is when the command runs. One that
 /// can't run says why, in the message HexIDE shows its user: its arguments aren't the ones the command takes, HexIDE couldn't start the
 /// rename, or the server was taken out.
+/// <para>
+/// HexIDE gives the add-in a command by its name, not by the prefix: a command of RDCore's that the add-in doesn't claim, such as
+/// <c>rdcore.refactor</c>, is HexIDE's own to run or to refuse.
+/// </para>
 /// </remarks>
 internal sealed class ClientCommands(Func<IAddinServerConnection?> connection)
 {
