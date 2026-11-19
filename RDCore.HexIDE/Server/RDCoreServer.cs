@@ -4,6 +4,7 @@ using RDCore.HexIDE.Platform;
 using RDCore.HexIDE.Resources;
 using RDCore.SDK.Client;
 using RDCore.SDK.Platform;
+using RDCore.SDK.Workspace;
 
 namespace RDCore.HexIDE.Server;
 
@@ -25,7 +26,7 @@ internal sealed class RDCoreServer(IHexIdeHost host, PlatformSource platform, IU
     /// <summary>A start that has to deploy the platform again may download it whole, which takes a while on a slow link.</summary>
     public static readonly TimeSpan BeforeLaunchTimeout = TimeSpan.FromMinutes(15);
 
-    private readonly HashSet<string> openProjects = new(OperatingSystem.IsWindows() ? StringComparer.OrdinalIgnoreCase : StringComparer.Ordinal);
+    private readonly HashSet<string> openProjects = new(WorkspacePaths.Comparer);
     private readonly object leasing = new();
     private CancellationTokenSource? registering;
     private IAddinServerConnection? connection;
@@ -37,7 +38,7 @@ internal sealed class RDCoreServer(IHexIdeHost host, PlatformSource platform, IU
 
     /// <summary>Whether <paramref name="projectPath"/> is an RDCore project's file.</summary>
     public static bool IsRDCoreProject(string projectPath) =>
-        string.Equals(Path.GetFileName(projectPath), ".rdproj", StringComparison.OrdinalIgnoreCase);
+        string.Equals(Path.GetFileName(projectPath), ProjectFile.FileName, StringComparison.OrdinalIgnoreCase);
 
     /// <summary>A project opened: the first RDCore project registers the server.</summary>
     public Task ProjectLoadedAsync(string projectPath)
@@ -148,6 +149,16 @@ internal sealed class RDCoreServer(IHexIdeHost host, PlatformSource platform, IU
     }
 
     /// <summary>
+    /// The extensions of the documents HexIDE gives the server: the modules of an RD-VBA project, as the platform lists them
+    /// (<see cref="SupportedLanguages.RDVBA"/>, <see cref="SupportedLanguage.ModuleFileTypes"/>).
+    /// </summary>
+    internal static string[] ModuleExtensions =>
+        [.. SupportedLanguages.RDVBA.ModuleFileTypes
+            .Select(pattern => Path.GetExtension(pattern))
+            .Where(extension => !string.IsNullOrEmpty(extension))
+            .Distinct(StringComparer.OrdinalIgnoreCase)];
+
+    /// <summary>
     /// The entry HexIDE launches the server from. The pipe, HexIDE's process and the workspace are HexIDE's to fill in at each
     /// start, so the workspace the server is told is the one HexIDE's client names in <c>initialize</c>.
     /// </summary>
@@ -155,7 +166,7 @@ internal sealed class RDCoreServer(IHexIdeHost host, PlatformSource platform, IU
     {
         Id = Id,
         DisplayName = "RDCore",
-        Extensions = [".bas", ".cls", ".frm", ".doccls"],
+        Extensions = ModuleExtensions,
         LanguageId = "vba",
         Transport = "pipe",
         PipeName = launch.PipeName,

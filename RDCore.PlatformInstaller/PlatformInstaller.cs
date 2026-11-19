@@ -4,6 +4,7 @@ using System.Security.Cryptography;
 using System.Text;
 using RDCore.SDK.Client;
 using RDCore.SDK.Platform;
+using RDCore.SDK.Workspace;
 
 namespace RDCore.PlatformInstaller;
 
@@ -323,9 +324,8 @@ public sealed class PlatformInstaller
         }
 
         var target = Path.GetFullPath(Path.Combine(root, entry.Name));
-        var comparison = OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal;
-        var inside = target.StartsWith(root + Path.DirectorySeparatorChar, comparison)
-            || (entry.EntryType == TarEntryType.Directory && Path.TrimEndingDirectorySeparator(target).Equals(root, comparison));
+        var inside = target.StartsWith(root + Path.DirectorySeparatorChar, WorkspacePaths.Comparison)
+            || (entry.EntryType == TarEntryType.Directory && Path.TrimEndingDirectorySeparator(target).Equals(root, WorkspacePaths.Comparison));
         if (Path.IsPathRooted(entry.Name) || !inside)
         {
             throw NotAPlatform(release, $"its entry {entry.Name} would land outside the platform");

@@ -3,6 +3,7 @@ using System.Diagnostics;
 using HexIDE.Addins;
 using RDCore.HexIDE.Platform;
 using RDCore.HexIDE.Resources;
+using RDCore.SDK.Workspace;
 
 namespace RDCore.HexIDE.Projects;
 
@@ -107,7 +108,7 @@ internal sealed class RDProjectWatcher : IDisposable
             around = new FileSystemWatcher(parent, Path.GetFileName(root)) { NotifyFilter = NotifyFilters.DirectoryName };
             around.Renamed += (_, e) =>
             {
-                if (RDProject.PathComparer.Equals(e.FullPath, root))
+                if (WorkspacePaths.Comparer.Equals(e.FullPath, root))
                 {
                     FolderBack();
                 }
@@ -175,8 +176,8 @@ internal sealed class RDProjectWatcher : IDisposable
     {
         lock (gate)
         {
-            if (RDProject.PathComparer.Equals(changed, path)
-                || last?.Members.Any(member => member.Digest is null && RDProject.PathComparer.Equals(member.Path, changed)) == true)
+            if (WorkspacePaths.Comparer.Equals(changed, path)
+                || last?.Members.Any(member => member.Digest is null && WorkspacePaths.Comparer.Equals(member.Path, changed)) == true)
             {
                 Schedule();
             }
@@ -415,8 +416,8 @@ internal static class RDProjectChanges
     /// </remarks>
     public static void Report(RDProject before, RDProject after, IAddinProjectChanges changes)
     {
-        var was = before.Members.ToDictionary(member => member.Path, RDProject.PathComparer);
-        var now = after.Members.ToDictionary(member => member.Path, RDProject.PathComparer);
+        var was = before.Members.ToDictionary(member => member.Path, WorkspacePaths.Comparer);
+        var now = after.Members.ToDictionary(member => member.Path, WorkspacePaths.Comparer);
         var removed = before.Members.Where(member => !now.TryGetValue(member.Path, out var same) || same.Kind != member.Kind).ToList();
         var added = after.Members.Where(member => !was.TryGetValue(member.Path, out var same) || same.Kind != member.Kind).ToList();
 
