@@ -2,8 +2,8 @@
   "$comment": "The sources the add-in builds against until they are packages, each at a pinned commit. Get-Dependencies.ps1 fetches only the paths listed, into deps/<name>.",
   "HexIDE": {
     "repository": "https://github.com/hexide-io/HexIDE.git",
-    "commit": "efeb942ff2865bf0b1d4511d019c8558063e795f",
-    "note": "hexide-io/HexIDE main (batch 370): the add-in seams A (#2821, RegisterLanguageServer), B (RegisterDebugLaunch) and C (RegisterProjectType, both #3186), and a server's settings on its connection (#4328, GetSettings and SetSettingsAsync). Until HexIDE.Core is a package.",
+    "commit": "6bb05606ec6eb0cb73ed8a56beae0308a68b6816",
+    "note": "hexide-io/HexIDE main (batch 377): the add-in seams A (#2821, RegisterLanguageServer), B (RegisterDebugLaunch) and C (RegisterProjectType, both #3186), a server's settings on its connection (#4328, GetSettings and SetSettingsAsync), and the code-window calls a claimed client command makes (#4345, StartRenameAsync and ShowReferencesAsync). Until HexIDE.Core is a package.",
     "paths": [ "/global.json", "/Directory.Packages.props", "/IDE/Directory.Build.props", "/IDE/HexIDE.Core/" ]
   }
 }

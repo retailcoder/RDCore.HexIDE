@@ -10,7 +10,8 @@ namespace RDCore.HexIDE.Server;
 /// <summary>
 /// RDCore's language server in HexIDE, registered only while an RDCore project (<c>.rdproj</c>) is open: when the first one
 /// opens, and taken out when the last one closes. HexIDE's own client keeps the connection; the add-in says hello on it
-/// (<c>rdcore/platform/initialize</c>) after each start.
+/// (<c>rdcore/platform/initialize</c>) after each start, and runs the commands RDCore's code actions and code lenses send for the
+/// client to run itself (<see cref="ClientCommands"/>).
 /// </summary>
 /// <remarks>
 /// HexIDE fixes a server's launch when it is registered, so the platform it runs from is found, or installed with the user's
@@ -94,6 +95,7 @@ internal sealed class RDCoreServer(IHexIdeHost host, PlatformSource platform, IU
         var client = new RDCorePlatformClient(channel);
         // Answered from the start, as the handshake says the add-in expects it.
         client.OnListSettingValue(new SettingsLists(() => connection).ApplyAsync);
+        var commands = new ClientCommands(() => connection);
         try
         {
             connection = host.RegisterLanguageServer(new AddinLanguageServer(Entry(launch))
@@ -108,6 +110,8 @@ internal sealed class RDCoreServer(IHexIdeHost host, PlatformSource platform, IU
                 },
                 MessagePrefix = "rdcore/",
                 ServerMethods = channel.ServerMethods,
+                CommandPrefix = ClientCommands.Prefix,
+                ClientCommands = commands.Handlers,
             });
         }
         catch (Exception ex) when (ex is ArgumentException or InvalidOperationException)
