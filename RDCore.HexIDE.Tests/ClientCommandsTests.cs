@@ -27,6 +27,16 @@ public sealed class ClientCommandsTests
     private Task Run(string command, string arguments, bool connected = true) =>
         Commands(connected).Handlers[command](Arguments(arguments), TestContext.CancellationToken);
 
+    // What RDCore.SDK finds wrong with the arguments, which the refusal carries for HexIDE's log.
+    private static string SdkFailure(string command, JsonElement[]? arguments)
+    {
+        var failure = command == RefactoringCommands.Rename
+            ? RenameCommandArguments.TryRead(arguments, out _, out var renameFailure) ? null : renameFailure
+            : ShowReferencesCommandArguments.TryRead(arguments, out _, out var referencesFailure) ? null : referencesFailure;
+        Assert.IsFalse(string.IsNullOrWhiteSpace(failure), "RDCore.SDK reads the arguments, or doesn't say what is wrong");
+        return failure!;
+    }
+
     [TestMethod]
     public void The_add_in_claims_RDCore_s_two_client_commands_under_its_prefix()
     {
@@ -98,7 +108,7 @@ public sealed class ClientCommandsTests
     {
         var failure = await Assert.ThrowsExactlyAsync<AddinCommandException>(() => Run(command, arguments));
 
-        Assert.AreEqual(Strings.CommandArgumentsUnreadable(command), failure.Message);
+        Assert.AreEqual(Strings.CommandArgumentsUnreadable(command, SdkFailure(command, Arguments(arguments))), failure.Message);
         await connection.DidNotReceiveWithAnyArgs().StartRenameAsync(default!, default!, default);
         await connection.DidNotReceiveWithAnyArgs().ShowReferencesAsync(default!, default);
     }
@@ -109,7 +119,7 @@ public sealed class ClientCommandsTests
         var failure = await Assert.ThrowsExactlyAsync<AddinCommandException>(
             () => Commands().Handlers[RefactoringCommands.Rename](null, TestContext.CancellationToken));
 
-        Assert.AreEqual(Strings.CommandArgumentsUnreadable(RefactoringCommands.Rename), failure.Message);
+        Assert.AreEqual(Strings.CommandArgumentsUnreadable(RefactoringCommands.Rename, SdkFailure(RefactoringCommands.Rename, null)), failure.Message);
     }
 
     [TestMethod]
@@ -129,11 +139,15 @@ public sealed class ClientCommandsTests
         try
         {
             CultureInfo.CurrentUICulture = CultureInfo.GetCultureInfo("en-CA");
-            Assert.AreEqual("RDCore sent rdcore.rename with arguments it doesn't take.", Strings.CommandArgumentsUnreadable("rdcore.rename"));
+            Assert.AreEqual(
+                "RDCore sent rdcore.rename with arguments it doesn't take. Argument 1 is missing.",
+                Strings.CommandArgumentsUnreadable("rdcore.rename", "Argument 1 is missing."));
             var english = (Strings.RenameNotStarted, Strings.ServerNotConnected);
 
             CultureInfo.CurrentUICulture = CultureInfo.GetCultureInfo("fr-CA");
-            Assert.AreEqual("RDCore a envoyé rdcore.rename avec des arguments que cette commande ne prend pas.", Strings.CommandArgumentsUnreadable("rdcore.rename"));
+            Assert.AreEqual(
+                "RDCore a envoyé rdcore.rename avec des arguments que cette commande ne prend pas. Argument 1 is missing.",
+                Strings.CommandArgumentsUnreadable("rdcore.rename", "Argument 1 is missing."));
             Assert.AreNotEqual(english.RenameNotStarted, Strings.RenameNotStarted);
             Assert.AreNotEqual(english.ServerNotConnected, Strings.ServerNotConnected);
         }

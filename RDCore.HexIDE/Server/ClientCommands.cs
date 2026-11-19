@@ -2,7 +2,9 @@ using System.Text.Json;
 using HexIDE.Addins;
 using HexIDE.Lsp.Messages;
 using RDCore.HexIDE.Resources;
+using RDCore.SDK.Model.Source;
 using RDCore.SDK.Semantics.Refactoring;
+using LspRange = HexIDE.Lsp.Messages.Range;
 
 namespace RDCore.HexIDE.Server;
 
@@ -11,9 +13,13 @@ namespace RDCore.HexIDE.Server;
 /// code window: <c>rdcore.rename</c> starts HexIDE's rename, and <c>rdcore.showReferences</c> shows the references in Find References.
 /// </summary>
 /// <remarks>
+/// RDCore.SDK reads a command's arguments (<see cref="RenameCommandArguments"/>, <see cref="ShowReferencesCommandArguments"/>), and the add-in
+/// gives HexIDE what it reads, as HexIDE's own positions and locations.
+/// <para>
 /// HexIDE gives a command its arguments only, so each runs on the registration's connection, as it is when the command runs. One that
-/// can't run says why, in the message HexIDE shows its user: its arguments aren't the ones the command takes, HexIDE couldn't start the
-/// rename, or the server was taken out.
+/// can't run says why, in the message HexIDE shows its user: its arguments aren't the ones the command takes (with what RDCore.SDK found
+/// wrong, in English, for HexIDE's log), HexIDE couldn't start the rename, or the server was taken out.
+/// </para>
 /// <para>
 /// HexIDE gives the add-in a command by its name, not by the prefix: a command of RDCore's that the add-in doesn't claim, such as
 /// <c>rdcore.refactor</c>, is HexIDE's own to run or to refuse.
@@ -26,13 +32,6 @@ internal sealed class ClientCommands(Func<IAddinServerConnection?> connection)
     /// </summary>
     public const string Prefix = "rdcore.";
 
-    // A field a command's arguments leave out, or give as null, is refused rather than read as its default.
-    private static readonly JsonSerializerOptions Strict = new()
-    {
-        RespectRequiredConstructorParameters = true,
-        RespectNullableAnnotations = true,
-    };
-
     /// <summary>
     /// The commands to claim when the server is registered, each by its name.
     /// </summary>
@@ -42,45 +41,36 @@ internal sealed class ClientCommands(Func<IAddinServerConnection?> connection)
         [RefactoringCommands.ShowReferences] = ShowReferencesAsync,
     };
 
-    // [uri, position]: the document and the position of the name to rename.
     private async Task RenameAsync(JsonElement[]? arguments, CancellationToken token)
     {
-        var (uri, position) = Read(RefactoringCommands.Rename, arguments, 2,
-            given => (Uri(given[0]), given[1].Deserialize<Position>(Strict) ?? throw new JsonException()));
-        if (!await Connected.StartRenameAsync(uri, position, token))
+        if (!RenameCommandArguments.TryRead(arguments, out var read, out var failure))
+        {
+            throw Unreadable(RefactoringCommands.Rename, failure);
+        }
+
+        if (!await Connected.StartRenameAsync(read.DocumentUri, ToHexIde(read.Position), token))
         {
             throw new AddinCommandException(Strings.RenameNotStarted);
         }
     }
 
-    // [uri, position, locations]: the arguments of VS Code's editor.action.showReferences, of which Find References shows the locations.
     private async Task ShowReferencesAsync(JsonElement[]? arguments, CancellationToken token)
     {
-        var locations = Read(RefactoringCommands.ShowReferences, arguments, 3, given =>
-            given[2].Deserialize<Location[]>(Strict) is { } read && read.All(location => location is not null) ? read : throw new JsonException());
+        if (!ShowReferencesCommandArguments.TryRead(arguments, out var read, out var failure))
+        {
+            throw Unreadable(RefactoringCommands.ShowReferences, failure);
+        }
+
+        var locations = read.Locations
+            .Select(location => new Location(location.DocumentUri, new LspRange(ToHexIde(location.Range.Start), ToHexIde(location.Range.End))))
+            .ToArray();
         await Connected.ShowReferencesAsync(locations, token);
     }
 
-    // The arguments the command takes, read in order; any it can't read are refused, before anything is asked of HexIDE.
-    private static T Read<T>(string command, JsonElement[]? arguments, int count, Func<JsonElement[], T> read)
-    {
-        if (arguments is not { } given || given.Length < count)
-        {
-            throw new AddinCommandException(Strings.CommandArgumentsUnreadable(command));
-        }
+    private static AddinCommandException Unreadable(string command, string? failure) =>
+        new(Strings.CommandArgumentsUnreadable(command, failure ?? string.Empty));
 
-        try
-        {
-            return read(given);
-        }
-        catch (JsonException)
-        {
-            throw new AddinCommandException(Strings.CommandArgumentsUnreadable(command));
-        }
-    }
-
-    private static string Uri(JsonElement argument) =>
-        argument.ValueKind == JsonValueKind.String ? argument.GetString()! : throw new JsonException();
+    private static Position ToHexIde(SourcePosition position) => new(position.Line, position.Character);
 
     private IAddinServerConnection Connected => connection() ?? throw new AddinCommandException(Strings.ServerNotConnected);
 }
