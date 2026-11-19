@@ -84,7 +84,7 @@ Télécharger RDCore {0} maintenant? Le téléchargement fait environ {1}, provi
     <value>HexIDE n'a pas accepté le serveur de langage de RDCore : {0}</value>
   </data>
   <data name="CommandArgumentsUnreadable" xml:space="preserve">
-    <value>RDCore a envoyé {0} avec des arguments que cette commande ne prend pas. {1}</value>
+    <value>RDCore a envoyé {0} avec des arguments que cette commande ne prend pas.</value>
   </data>
   <data name="RenameNotStarted" xml:space="preserve">
     <value>Le renommage n'a pas commencé : HexIDE n'a pas pu ouvrir le document, ou la position n'y est pas.</value>

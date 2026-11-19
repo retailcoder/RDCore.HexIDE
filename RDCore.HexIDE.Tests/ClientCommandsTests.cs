@@ -1,3 +1,5 @@
+using System.Collections.Concurrent;
+using System.Diagnostics;
 using System.Globalization;
 using System.Text.Json;
 using HexIDE.Addins;
@@ -27,7 +29,7 @@ public sealed class ClientCommandsTests
     private Task Run(string command, string arguments, bool connected = true) =>
         Commands(connected).Handlers[command](Arguments(arguments), TestContext.CancellationToken);
 
-    // What RDCore.SDK finds wrong with the arguments, which the refusal carries for HexIDE's log.
+    // What RDCore.SDK finds wrong with the arguments, which the refusal writes to the trace log.
     private static string SdkFailure(string command, JsonElement[]? arguments)
     {
         var failure = command == RefactoringCommands.Rename
@@ -35,6 +37,37 @@ public sealed class ClientCommandsTests
             : ShowReferencesCommandArguments.TryRead(arguments, out _, out var referencesFailure) ? null : referencesFailure;
         Assert.IsFalse(string.IsNullOrWhiteSpace(failure), "RDCore.SDK reads the arguments, or doesn't say what is wrong");
         return failure!;
+    }
+
+    // The refusal of a command, and what was written to the trace log while it ran (other tests' lines among them).
+    private static async Task<(AddinCommandException Failure, string[] Traced)> Refusal(Func<Task> command)
+    {
+        var listener = new CapturingListener();
+        Trace.Listeners.Add(listener);
+        try
+        {
+            var failure = await Assert.ThrowsExactlyAsync<AddinCommandException>(command);
+            return (failure, listener.Lines.ToArray());
+        }
+        finally
+        {
+            Trace.Listeners.Remove(listener);
+        }
+    }
+
+    private sealed class CapturingListener : TraceListener
+    {
+        public ConcurrentQueue<string> Lines { get; } = new();
+
+        public override void TraceEvent(TraceEventCache? eventCache, string source, TraceEventType eventType, int id, string? message) =>
+            Lines.Enqueue(message ?? string.Empty);
+
+        public override void TraceEvent(TraceEventCache? eventCache, string source, TraceEventType eventType, int id, string? format, params object?[]? args) =>
+            Lines.Enqueue(args is null ? format ?? string.Empty : string.Format(CultureInfo.InvariantCulture, format ?? string.Empty, args));
+
+        public override void Write(string? message) { }
+
+        public override void WriteLine(string? message) => Lines.Enqueue(message ?? string.Empty);
     }
 
     [TestMethod]
@@ -106,9 +139,10 @@ public sealed class ClientCommandsTests
     [DataRow(RefactoringCommands.ShowReferences, $$"""["{{Uri}}", { "line": 4, "character": 12 }, [null]]""", DisplayName = "references: a null location")]
     public async Task Arguments_the_command_doesn_t_take_are_refused_and_HexIDE_is_asked_nothing(string command, string arguments)
     {
-        var failure = await Assert.ThrowsExactlyAsync<AddinCommandException>(() => Run(command, arguments));
+        var (failure, traced) = await Refusal(() => Run(command, arguments));
 
-        Assert.AreEqual(Strings.CommandArgumentsUnreadable(command, SdkFailure(command, Arguments(arguments))), failure.Message);
+        Assert.AreEqual(Strings.CommandArgumentsUnreadable(command), failure.Message);
+        CollectionAssert.Contains(traced, $"RDCore for HexIDE: {SdkFailure(command, Arguments(arguments))}");
         await connection.DidNotReceiveWithAnyArgs().StartRenameAsync(default!, default!, default);
         await connection.DidNotReceiveWithAnyArgs().ShowReferencesAsync(default!, default);
     }
@@ -116,10 +150,10 @@ public sealed class ClientCommandsTests
     [TestMethod]
     public async Task No_arguments_at_all_are_refused_too()
     {
-        var failure = await Assert.ThrowsExactlyAsync<AddinCommandException>(
-            () => Commands().Handlers[RefactoringCommands.Rename](null, TestContext.CancellationToken));
+        var (failure, traced) = await Refusal(() => Commands().Handlers[RefactoringCommands.Rename](null, TestContext.CancellationToken));
 
-        Assert.AreEqual(Strings.CommandArgumentsUnreadable(RefactoringCommands.Rename, SdkFailure(RefactoringCommands.Rename, null)), failure.Message);
+        Assert.AreEqual(Strings.CommandArgumentsUnreadable(RefactoringCommands.Rename), failure.Message);
+        CollectionAssert.Contains(traced, $"RDCore for HexIDE: {SdkFailure(RefactoringCommands.Rename, null)}");
     }
 
     [TestMethod]
@@ -139,15 +173,11 @@ public sealed class ClientCommandsTests
         try
         {
             CultureInfo.CurrentUICulture = CultureInfo.GetCultureInfo("en-CA");
-            Assert.AreEqual(
-                "RDCore sent rdcore.rename with arguments it doesn't take. Argument 1 is missing.",
-                Strings.CommandArgumentsUnreadable("rdcore.rename", "Argument 1 is missing."));
+            Assert.AreEqual("RDCore sent rdcore.rename with arguments it doesn't take.", Strings.CommandArgumentsUnreadable("rdcore.rename"));
             var english = (Strings.RenameNotStarted, Strings.ServerNotConnected);
 
             CultureInfo.CurrentUICulture = CultureInfo.GetCultureInfo("fr-CA");
-            Assert.AreEqual(
-                "RDCore a envoyé rdcore.rename avec des arguments que cette commande ne prend pas. Argument 1 is missing.",
-                Strings.CommandArgumentsUnreadable("rdcore.rename", "Argument 1 is missing."));
+            Assert.AreEqual("RDCore a envoyé rdcore.rename avec des arguments que cette commande ne prend pas.", Strings.CommandArgumentsUnreadable("rdcore.rename"));
             Assert.AreNotEqual(english.RenameNotStarted, Strings.RenameNotStarted);
             Assert.AreNotEqual(english.ServerNotConnected, Strings.ServerNotConnected);
         }

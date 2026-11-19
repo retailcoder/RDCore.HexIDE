@@ -84,7 +84,7 @@ Download RDCore {0} now? It is about {1}, from {2}, and goes in {3}. Its rdc com
     <value>HexIDE didn't take RDCore's language server: {0}</value>
   </data>
   <data name="CommandArgumentsUnreadable" xml:space="preserve">
-    <value>RDCore sent {0} with arguments it doesn't take. {1}</value>
+    <value>RDCore sent {0} with arguments it doesn't take.</value>
   </data>
   <data name="RenameNotStarted" xml:space="preserve">
     <value>The rename didn't start: HexIDE couldn't open the document, or the position isn't in it.</value>

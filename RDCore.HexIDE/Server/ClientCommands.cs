@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Text.Json;
 using HexIDE.Addins;
 using HexIDE.Lsp.Messages;
@@ -17,8 +18,8 @@ namespace RDCore.HexIDE.Server;
 /// gives HexIDE what it reads, as HexIDE's own positions and locations.
 /// <para>
 /// HexIDE gives a command its arguments only, so each runs on the registration's connection, as it is when the command runs. One that
-/// can't run says why, in the message HexIDE shows its user: its arguments aren't the ones the command takes (with what RDCore.SDK found
-/// wrong, in English, for HexIDE's log), HexIDE couldn't start the rename, or the server was taken out.
+/// can't run says why, in the message HexIDE shows its user: its arguments aren't the ones the command takes (what RDCore.SDK found
+/// wrong goes to the trace log, in English), HexIDE couldn't start the rename, or the server was taken out.
 /// </para>
 /// <para>
 /// HexIDE gives the add-in a command by its name, not by the prefix: a command of RDCore's that the add-in doesn't claim, such as
@@ -67,8 +68,12 @@ internal sealed class ClientCommands(Func<IAddinServerConnection?> connection)
         await Connected.ShowReferencesAsync(locations, token);
     }
 
-    private static AddinCommandException Unreadable(string command, string? failure) =>
-        new(Strings.CommandArgumentsUnreadable(command, failure ?? string.Empty));
+    // What RDCore.SDK found wrong is English, for a log: the user sees the localized sentence.
+    private static AddinCommandException Unreadable(string command, string? failure)
+    {
+        Trace.TraceError($"RDCore for HexIDE: {failure}");
+        return new(Strings.CommandArgumentsUnreadable(command));
+    }
 
     private static Position ToHexIde(SourcePosition position) => new(position.Line, position.Character);
 

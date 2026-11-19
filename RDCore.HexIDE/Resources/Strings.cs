@@ -66,8 +66,8 @@ internal static class Strings
     /// <summary>{0}: why.</summary>
     public static string ServerNotRegistered(string reason) => Format(nameof(ServerNotRegistered), reason);
 
-    /// <summary>{0}: the command. {1}: what RDCore.SDK found wrong with its arguments, in English.</summary>
-    public static string CommandArgumentsUnreadable(string command, string failure) => Format(nameof(CommandArgumentsUnreadable), command, failure);
+    /// <summary>{0}: the command.</summary>
+    public static string CommandArgumentsUnreadable(string command) => Format(nameof(CommandArgumentsUnreadable), command);
 
     public static string RenameNotStarted => Get(nameof(RenameNotStarted));
 
