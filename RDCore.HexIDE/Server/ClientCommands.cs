@@ -7,7 +7,7 @@ using RDCore.SDK.Semantics.Refactoring;
 namespace RDCore.HexIDE.Server;
 
 /// <summary>
-/// The commands of RDCore's code actions and code lenses that a client runs itself (<see cref="RefactoringCommands"/>), run in HexIDE's
+/// Two of the commands of RDCore's code actions and code lenses that a client runs itself (<see cref="RefactoringCommands"/>), run in HexIDE's
 /// code window: <c>rdcore.rename</c> starts HexIDE's rename, and <c>rdcore.showReferences</c> shows the references in Find References.
 /// </summary>
 /// <remarks>
