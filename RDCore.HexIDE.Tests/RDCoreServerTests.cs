@@ -10,6 +10,7 @@ using RDCore.PlatformInstaller;
 using RDCore.PlatformInstaller.Tests;
 using RDCore.SDK.Client;
 using RDCore.SDK.Platform;
+using RDCore.SDK.Semantics.Refactoring;
 
 namespace RDCore.HexIDE.Tests;
 
@@ -97,6 +98,9 @@ public sealed class RDCoreServerTests : IDisposable
                 RDCorePlatformProtocol.ListSettingValue,
             },
             registered.ServerMethods.Keys.ToArray(), "every server-to-client method RDCore's protocol has");
+        Assert.AreEqual("rdcore.", registered.CommandPrefix);
+        CollectionAssert.AreEquivalent(new[] { RefactoringCommands.Rename, RefactoringCommands.ShowReferences },
+            registered.ClientCommands.Keys.ToArray(), "the client-side commands RDCore's code actions and code lenses send");
         Assert.AreSame(connection, server.Connection);
     }
 
@@ -116,6 +120,19 @@ public sealed class RDCoreServerTests : IDisposable
             "HexIDE offers a project's class modules only to a server that serves VB6");
         Assert.IsTrue(entry.Priority > LanguageServerRegistration.BundledPriority,
             "where HexIDE takes one server's answer (hover, definition, rename, formatting), it takes RDCore's");
+    }
+
+    [TestMethod]
+    public async Task A_claimed_command_runs_on_the_connection_HexIDE_gave_the_registration()
+    {
+        using var server = Server(BuiltPlatform());
+        await server.ProjectLoadedAsync(ProjectFile());
+        connection.StartRenameAsync(default!, default!, default).ReturnsForAnyArgs(true);
+        var arguments = JsonDocument.Parse("""["file:///C:/Ledger/Module1.bas", { "line": 4, "character": 12 }]""").RootElement.EnumerateArray().ToArray();
+
+        await registered!.ClientCommands[RefactoringCommands.Rename](arguments, TestContext.CancellationToken);
+
+        await connection.Received(1).StartRenameAsync("file:///C:/Ledger/Module1.bas", new global::HexIDE.Lsp.Messages.Position(4, 12), Arg.Any<CancellationToken>());
     }
 
     [TestMethod]

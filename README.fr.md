@@ -9,13 +9,13 @@
 
 Ce dépôt contient **RDCore pour HexIDE**, l'add-in qui amène la plateforme [RDCore](https://github.com/rubberduck-vba/RDCore) dans l'IDE [HexIDE](https://github.com/hexide-io/HexIDE), sous **⚖️GPLv3 ou toute version ultérieure** :
 
-- **RDCore.HexIDE** : l'add-in. Il inscrit le serveur de langage de RDCore auprès de HexIDE tant qu'un projet RDCore (`.rdproj`) est ouvert, ouvre les projets `.rdproj`, et offre le débogueur de RDCore à F5. Le serveur dessert les modules des projets RD-VBA et VB6 : `.bas`, `.cls`, `.frm`, `.doccls`, `.rdform`, `.ctl`, `.pag` et `.dob`. HexIDE donne aussi ceux de VB6 à son propre serveur de langage VB6, et retient la réponse de RDCore là où il n'en retient qu'une. L'add-in parle à la plateforme par RDCore.SDK.Protocol, un assembly du paquet [RDCore.SDK](https://www.nuget.org/packages/RDCore.SDK), sur la connexion de serveur de langage de HexIDE elle-même.
+- **RDCore.HexIDE** : l'add-in. Il inscrit le serveur de langage de RDCore auprès de HexIDE tant qu'un projet RDCore (`.rdproj`) est ouvert, ouvre les projets `.rdproj`, offre le débogueur de RDCore à F5, et exécute côté client deux commandes des actions de code et des lentilles de code de RDCore : une action Renommer lance le renommage de HexIDE, et une lentille de références montre dans Find References les références qu'elle compte. Le serveur dessert les modules des projets RD-VBA et VB6 : `.bas`, `.cls`, `.frm`, `.doccls`, `.rdform`, `.ctl`, `.pag` et `.dob`. HexIDE donne aussi ceux de VB6 à son propre serveur de langage VB6, et retient la réponse de RDCore là où il n'en retient qu'une. L'add-in parle à la plateforme par RDCore.SDK.Protocol, un assembly du paquet [RDCore.SDK](https://www.nuget.org/packages/RDCore.SDK), sur la connexion de serveur de langage de HexIDE elle-même.
 - **RDCore.PlatformInstaller** : installe la plateforme RDCore sur le poste. Avec votre consentement, il télécharge la plateforme depuis les publications GitHub de RDCore, la vérifie, la déploie et la tient à jour. Il ne dépend aucunement de HexIDE et fera partie de l'installateur de RDCore lui-même.
 
 La plateforme elle-même, incluant le runtime RD-VBA, se trouve dans le dépôt [RDCore](https://github.com/rubberduck-vba/RDCore) et s'exécute dans des processus distincts. Ce que vous construisez avec RDCore vous appartient (voir l'[AVIS de RDCore](https://github.com/rubberduck-vba/RDCore/blob/main/NOTICE.md)).
 
 ## 📊 État du projet
-RDCore est en développement **pré-alpha** actif, et cet add-in avec lui. Il fonctionne avec HexIDE v0.5.0 et les versions ultérieures, qui ont les points d'extension sur lesquels il s'appuie.
+RDCore est en développement **pré-alpha** actif, et cet add-in avec lui. Il fonctionne avec HexIDE compilé à partir de sa branche principale, depuis le lot 377, qui offre les points d'extension sur lesquels il s'appuie. Aucune publication de HexIDE ne les offre; la première sera celle qui suivra la v0.6.2.
 
 **Contributions**  
 
