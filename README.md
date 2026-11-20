@@ -59,7 +59,7 @@ dotnet test RDCore.HexIDE.slnx
 
 `Get-Dependencies.ps1` fetches the sources the add-in builds against, at the versions `tools/dependencies.json` pins, into `deps/`: HexIDE's add-in contract (`HexIDE.Core`). The RDCore.SDK package comes from nuget.org.
 
-`pwsh tools/Pack-Addin.ps1` lays the add-in out as a HexIDE add-in package in `artifacts/addins/rdcore/`: copy that folder into the `addins` folder beside HexIDE's executable. A package you pack yourself is unsigned, so HexIDE loads it only in developer mode with unsigned add-ins allowed. The package's logo is the duck, `assets/ducky.png`: HexIDE shows it on the add-in's options page once the package is signed, and its own placeholder for an unsigned package.
+`pwsh tools/Pack-Addin.ps1` lays the add-in out as a HexIDE add-in package in `artifacts/addins/rdcore/`: copy that folder into the `addins` folder beside HexIDE's executable. The package carries every assembly the add-in runs with, except the ones HexIDE shares with its add-ins (HexIDE.Core, Avalonia, StreamJsonRpc and what they depend on). Packing fails when an assembly the add-in needs is in neither the package, HexIDE's set nor .NET. A package you pack yourself is unsigned, so HexIDE loads it only in developer mode with unsigned add-ins allowed. The package's logo is the duck, `assets/ducky.png`: HexIDE shows it on the add-in's options page once the package is signed, and its own placeholder for an unsigned package.
 
 ### Development settings
 
