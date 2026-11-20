@@ -382,6 +382,37 @@ public sealed class RDCoreServerTests : IDisposable
         Assert.IsNull(server.Connection);
     }
 
+    [TestMethod]
+    public async Task An_assembly_missing_from_the_add_in_is_reported_to_the_user_by_name()
+    {
+        host.RegisterLanguageServer(Arg.Any<AddinLanguageServer>()).Returns(_ => throw MissingAssembly());
+        using var server = Server(BuiltPlatform());
+
+        await server.ProjectLoadedAsync(ProjectFile());
+
+        Assert.AreEqual(Strings.ServerNotSetUp(Strings.AddinIncomplete("OmniSharp.Extensions.LanguageProtocol")), prompts.Told.Single());
+        Assert.IsNull(server.Connection);
+    }
+
+    // Only Windows keeps a file that is open from being deleted, which is how this sees the lease.
+    [TestMethod]
+    [OSCondition(OperatingSystems.Windows)]
+    public async Task A_server_the_add_in_fails_to_set_up_holds_no_installed_version()
+    {
+        prompts.Answer = true;
+        host.RegisterLanguageServer(Arg.Any<AddinLanguageServer>()).Returns(_ => throw MissingAssembly());
+        using var server = Server(github: new FakeGitHub().Release("v0.1.0"));
+
+        await server.ProjectLoadedAsync(ProjectFile());
+
+        File.Delete(Path.Combine(folder, "installed", "versions", "0.1.0", "rdcore.json"));
+    }
+
+    // What .NET throws where a type that needs an assembly the package doesn't carry first initializes.
+    private static TypeInitializationException MissingAssembly() => new("RDCore.SDK.Workspace.SupportedLanguages", new FileNotFoundException(
+        "Could not load file or assembly 'OmniSharp.Extensions.LanguageProtocol, Version=0.19.0.0, Culture=neutral, PublicKeyToken=null'.",
+        "OmniSharp.Extensions.LanguageProtocol, Version=0.19.0.0, Culture=neutral, PublicKeyToken=null"));
+
     // Only Windows keeps a file that is open from being deleted, which is how this sees the lease.
     [TestMethod]
     [OSCondition(OperatingSystems.Windows)]

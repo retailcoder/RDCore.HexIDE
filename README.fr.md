@@ -59,7 +59,7 @@ dotnet test RDCore.HexIDE.slnx
 
 `Get-Dependencies.ps1` récupère dans `deps/` les sources contre lesquelles l'add-in est bâti, aux versions que fixe `tools/dependencies.json` : le contrat d'add-in de HexIDE (`HexIDE.Core`). Le paquet RDCore.SDK provient de nuget.org.
 
-`pwsh tools/Pack-Addin.ps1` dispose l'add-in en paquet d'add-in HexIDE dans `artifacts/addins/rdcore/` : copiez ce dossier dans le dossier `addins` à côté de l'exécutable de HexIDE. Un paquet que vous disposez vous-même n'est pas signé : HexIDE ne le charge donc qu'en mode développeur, avec les add-ins non signés permis. Le logo du paquet est le canard, `assets/ducky.png` : HexIDE l'affiche dans la page d'options de l'add-in une fois le paquet signé, et affiche sa propre image par défaut pour un paquet non signé.
+`pwsh tools/Pack-Addin.ps1` dispose l'add-in en paquet d'add-in HexIDE dans `artifacts/addins/rdcore/` : copiez ce dossier dans le dossier `addins` à côté de l'exécutable de HexIDE. Le paquet contient chaque assembly dont l'add-in a besoin pour s'exécuter, sauf celles que HexIDE partage avec ses add-ins (HexIDE.Core, Avalonia, StreamJsonRpc et ce dont elles dépendent). La mise en paquet échoue quand une assembly nécessaire à l'add-in ne se trouve ni dans le paquet, ni parmi celles de HexIDE, ni dans .NET, ou y est plus ancienne que la version contre laquelle l'add-in a été bâti. Un paquet que vous disposez vous-même n'est pas signé : HexIDE ne le charge donc qu'en mode développeur, avec les add-ins non signés permis. Le logo du paquet est le canard, `assets/ducky.png` : HexIDE l'affiche dans la page d'options de l'add-in une fois le paquet signé, et affiche sa propre image par défaut pour un paquet non signé.
 
 ### Réglages de développement
 
