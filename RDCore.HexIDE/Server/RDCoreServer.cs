@@ -149,11 +149,17 @@ internal sealed class RDCoreServer(IHexIdeHost host, PlatformSource platform, IU
     }
 
     /// <summary>
-    /// The extensions of the documents HexIDE gives the server: the modules of an RD-VBA project, as the platform lists them
-    /// (<see cref="SupportedLanguages.RDVBA"/>, <see cref="SupportedLanguage.ModuleFileTypes"/>).
+    /// The extensions of the documents HexIDE gives the server: the modules of an RD-VBA project and of a VB6 one, as the platform
+    /// lists them (<see cref="SupportedLanguages.RDVBA"/>, <see cref="SupportedLanguages.VB6"/>, <see cref="SupportedLanguage.ModuleFileTypes"/>).
     /// </summary>
+    /// <remarks>
+    /// HexIDE offers a document to every server that claims its extension, its bundled VB6 server among them, and the claims of
+    /// <c>.bas</c> and <c>.frm</c> make it read this entry as one that serves VB6, so a project's class modules reach it too. The
+    /// entry's priority puts the server ahead of the bundled one where HexIDE takes one server's answer.
+    /// </remarks>
     internal static string[] ModuleExtensions =>
-        [.. SupportedLanguages.RDVBA.ModuleFileTypes
+        [.. new[] { SupportedLanguages.RDVBA, SupportedLanguages.VB6 }
+            .SelectMany(language => language.ModuleFileTypes)
             .Select(pattern => Path.GetExtension(pattern))
             .Where(extension => !string.IsNullOrEmpty(extension))
             .Distinct(StringComparer.OrdinalIgnoreCase)];

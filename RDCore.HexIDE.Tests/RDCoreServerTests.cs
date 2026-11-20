@@ -1,6 +1,7 @@
 using System.Globalization;
 using System.Text.Json;
 using HexIDE.Addins;
+using HexIDE.Lsp;
 using NSubstitute;
 using RDCore.HexIDE.Platform;
 using RDCore.HexIDE.Resources;
@@ -84,8 +85,8 @@ public sealed class RDCoreServerTests : IDisposable
             $"a pipe name the platform makes, short enough for a macOS socket path: {entry.PipeName}");
         CollectionAssert.AreEqual(
             new[] { "--pipe-name", "{pipe}", "--workspace", "{workspaceUri}", "--client-process-id", "{pid}" }, entry.Arguments!.List);
-        // RD-VBA's modules, the code of an RDForms form among them.
-        CollectionAssert.AreEquivalent(new[] { ".bas", ".cls", ".frm", ".doccls", ".rdform" }, entry.Extensions);
+        // RD-VBA's modules, the code of an RDForms form among them, and VB6's designed modules.
+        CollectionAssert.AreEquivalent(new[] { ".bas", ".cls", ".frm", ".doccls", ".rdform", ".ctl", ".pag", ".dob" }, entry.Extensions);
         Assert.AreEqual(RDCoreServer.BeforeLaunchTimeout, registered.BeforeLaunchTimeout);
         Assert.AreEqual("rdcore/", registered.MessagePrefix);
         CollectionAssert.AreEquivalent(
@@ -97,6 +98,24 @@ public sealed class RDCoreServerTests : IDisposable
             },
             registered.ServerMethods.Keys.ToArray(), "every server-to-client method RDCore's protocol has");
         Assert.AreSame(connection, server.Connection);
+    }
+
+    [TestMethod]
+    public async Task The_server_shares_VB6_modules_with_HexIDE_s_bundled_VB6_server_and_ranks_above_it()
+    {
+        using var server = Server(BuiltPlatform());
+
+        await server.ProjectLoadedAsync(ProjectFile());
+
+        var entry = registered!.Entry;
+        // HexIDE offers a document to every server that claims its extension.
+        CollectionAssert.AreEquivalent(new[] { ".bas", ".cls", ".frm", ".ctl", ".pag", ".dob" },
+            entry.Extensions!.Intersect(DocumentLanguage.Vb6Extensions, StringComparer.OrdinalIgnoreCase).ToArray(),
+            "the modules both servers are offered: a Designer (.dsr) isn't a module, and stays the bundled server's alone");
+        Assert.IsTrue(DocumentLanguage.EstablishesVb6(entry.Extensions!, entry.LanguageId),
+            "HexIDE offers a project's class modules only to a server that serves VB6");
+        Assert.IsTrue(entry.Priority > LanguageServerRegistration.BundledPriority,
+            "where HexIDE takes one server's answer (hover, definition, rename, formatting), it takes RDCore's");
     }
 
     [TestMethod]
