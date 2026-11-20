@@ -66,6 +66,13 @@ internal static class Strings
     /// <summary>{0}: why.</summary>
     public static string ServerNotRegistered(string reason) => Format(nameof(ServerNotRegistered), reason);
 
+    /// <summary>{0}: the command.</summary>
+    public static string CommandArgumentsUnreadable(string command) => Format(nameof(CommandArgumentsUnreadable), command);
+
+    public static string RenameNotStarted => Get(nameof(RenameNotStarted));
+
+    public static string ServerNotConnected => Get(nameof(ServerNotConnected));
+
     public static string ProjectTypeTitle => Get(nameof(ProjectTypeTitle));
 
     /// <summary>{0}: the project file.</summary>

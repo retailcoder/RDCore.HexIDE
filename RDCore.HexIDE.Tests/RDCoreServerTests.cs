@@ -1,6 +1,7 @@
 using System.Globalization;
 using System.Text.Json;
 using HexIDE.Addins;
+using HexIDE.Lsp;
 using NSubstitute;
 using RDCore.HexIDE.Platform;
 using RDCore.HexIDE.Resources;
@@ -9,6 +10,7 @@ using RDCore.PlatformInstaller;
 using RDCore.PlatformInstaller.Tests;
 using RDCore.SDK.Client;
 using RDCore.SDK.Platform;
+using RDCore.SDK.Semantics.Refactoring;
 
 namespace RDCore.HexIDE.Tests;
 
@@ -84,8 +86,8 @@ public sealed class RDCoreServerTests : IDisposable
             $"a pipe name the platform makes, short enough for a macOS socket path: {entry.PipeName}");
         CollectionAssert.AreEqual(
             new[] { "--pipe-name", "{pipe}", "--workspace", "{workspaceUri}", "--client-process-id", "{pid}" }, entry.Arguments!.List);
-        // RD-VBA's modules, the code of an RDForms form among them.
-        CollectionAssert.AreEquivalent(new[] { ".bas", ".cls", ".frm", ".doccls", ".rdform" }, entry.Extensions);
+        // RD-VBA's modules, the code of an RDForms form among them, and VB6's designed modules.
+        CollectionAssert.AreEquivalent(new[] { ".bas", ".cls", ".frm", ".doccls", ".rdform", ".ctl", ".pag", ".dob" }, entry.Extensions);
         Assert.AreEqual(RDCoreServer.BeforeLaunchTimeout, registered.BeforeLaunchTimeout);
         Assert.AreEqual("rdcore/", registered.MessagePrefix);
         CollectionAssert.AreEquivalent(
@@ -96,7 +98,41 @@ public sealed class RDCoreServerTests : IDisposable
                 RDCorePlatformProtocol.ListSettingValue,
             },
             registered.ServerMethods.Keys.ToArray(), "every server-to-client method RDCore's protocol has");
+        Assert.AreEqual("rdcore.", registered.CommandPrefix);
+        CollectionAssert.AreEquivalent(new[] { RefactoringCommands.Rename, RefactoringCommands.ShowReferences },
+            registered.ClientCommands.Keys.ToArray(), "the client-side commands RDCore's code actions and code lenses send");
         Assert.AreSame(connection, server.Connection);
+    }
+
+    [TestMethod]
+    public async Task The_server_shares_VB6_modules_with_HexIDE_s_bundled_VB6_server_and_ranks_above_it()
+    {
+        using var server = Server(BuiltPlatform());
+
+        await server.ProjectLoadedAsync(ProjectFile());
+
+        var entry = registered!.Entry;
+        // HexIDE offers a document to every server that claims its extension.
+        CollectionAssert.AreEquivalent(new[] { ".bas", ".cls", ".frm", ".ctl", ".pag", ".dob" },
+            entry.Extensions!.Intersect(DocumentLanguage.Vb6Extensions, StringComparer.OrdinalIgnoreCase).ToArray(),
+            "the modules both servers are offered: a Designer (.dsr) isn't a module, and stays the bundled server's alone");
+        Assert.IsTrue(DocumentLanguage.EstablishesVb6(entry.Extensions!, entry.LanguageId),
+            "HexIDE offers a project's class modules only to a server that serves VB6");
+        Assert.IsTrue(entry.Priority > LanguageServerRegistration.BundledPriority,
+            "where HexIDE takes one server's answer (hover, definition, rename, formatting), it takes RDCore's");
+    }
+
+    [TestMethod]
+    public async Task A_claimed_command_runs_on_the_connection_HexIDE_gave_the_registration()
+    {
+        using var server = Server(BuiltPlatform());
+        await server.ProjectLoadedAsync(ProjectFile());
+        connection.StartRenameAsync(default!, default!, default).ReturnsForAnyArgs(true);
+        var arguments = JsonDocument.Parse("""["file:///C:/Ledger/Module1.bas", { "line": 4, "character": 12 }]""").RootElement.EnumerateArray().ToArray();
+
+        await registered!.ClientCommands[RefactoringCommands.Rename](arguments, TestContext.CancellationToken);
+
+        await connection.Received(1).StartRenameAsync("file:///C:/Ledger/Module1.bas", new global::HexIDE.Lsp.Messages.Position(4, 12), Arg.Any<CancellationToken>());
     }
 
     [TestMethod]

@@ -9,13 +9,13 @@
 
 This repository holds **RDCore for HexIDE**, the add-in that brings the [RDCore](https://github.com/rubberduck-vba/RDCore) platform into the [HexIDE](https://github.com/hexide-io/HexIDE) IDE, under **⚖️GPLv3 or later**:
 
-- **RDCore.HexIDE**: the add-in. It registers RDCore's language server with HexIDE while an RDCore project (`.rdproj`) is open, opens `.rdproj` projects, and offers RDCore's debugger to F5. It talks to the platform through RDCore.SDK.Protocol, an assembly of the [RDCore.SDK](https://www.nuget.org/packages/RDCore.SDK) package, over HexIDE's own language-server connection.
+- **RDCore.HexIDE**: the add-in. It registers RDCore's language server with HexIDE while an RDCore project (`.rdproj`) is open, opens `.rdproj` projects, offers RDCore's debugger to F5, and runs two client-side commands of RDCore's code actions and code lenses: a Rename action starts HexIDE's rename, and a references lens shows the references it counts in Find References. The server serves the modules of RD-VBA and VB6 projects: `.bas`, `.cls`, `.frm`, `.doccls`, `.rdform`, `.ctl`, `.pag` and `.dob`. HexIDE also gives the VB6 ones to its own VB6 language server, and takes RDCore's answer where it takes one server's. The add-in talks to the platform through RDCore.SDK.Protocol, an assembly of the [RDCore.SDK](https://www.nuget.org/packages/RDCore.SDK) package, over HexIDE's own language-server connection.
 - **RDCore.PlatformInstaller**: gets the RDCore platform onto the machine. With your consent it downloads the platform from RDCore's GitHub releases, checks it and deploys it, and keeps it up to date. It has no dependency on HexIDE, and will become part of RDCore's own installer.
 
 The platform itself, the RD-VBA runtime included, lives in the [RDCore](https://github.com/rubberduck-vba/RDCore) repository and runs as separate processes. What you build with RDCore is yours (see [RDCore's NOTICE](https://github.com/rubberduck-vba/RDCore/blob/main/NOTICE.md)).
 
 ## 📊 Project Status
-RDCore is in active **pre-alpha** development, and this add-in with it. It runs on HexIDE v0.5.0 and later versions, which have the add-in seams it builds on.
+RDCore is in active **pre-alpha** development, and this add-in with it. It runs on HexIDE built from its main branch at batch 377 or later, which has the add-in seams it builds on. No HexIDE release has them; the first will be the release after v0.6.2.
 
 **Contributions**  
 
