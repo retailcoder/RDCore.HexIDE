@@ -408,7 +408,7 @@ public sealed class RDCoreServerTests : IDisposable
         File.Delete(Path.Combine(folder, "installed", "versions", "0.1.0", "rdcore.json"));
     }
 
-    // What .NET throws where a type that needs an assembly the package doesn't carry first initialises.
+    // What .NET throws where a type that needs an assembly the package doesn't carry first initializes.
     private static TypeInitializationException MissingAssembly() => new("RDCore.SDK.Workspace.SupportedLanguages", new FileNotFoundException(
         "Could not load file or assembly 'OmniSharp.Extensions.LanguageProtocol, Version=0.19.0.0, Culture=neutral, PublicKeyToken=null'.",
         "OmniSharp.Extensions.LanguageProtocol, Version=0.19.0.0, Culture=neutral, PublicKeyToken=null"));

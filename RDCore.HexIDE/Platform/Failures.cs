@@ -55,7 +55,7 @@ internal static class Failures
     public static void Record(Exception failure) => Trace.TraceWarning($"RDCore for HexIDE: {failure}");
 
     // An assembly the add-in's package doesn't carry: its loader names it as the file, with its version, and a type that needed
-    // it to initialise fails with it.
+    // it to initialize fails with it.
     private static string? MissingAssembly(Exception failure) => failure switch
     {
         TypeInitializationException { InnerException: { } inner } => MissingAssembly(inner),
