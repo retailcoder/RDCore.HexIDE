@@ -92,13 +92,13 @@ internal sealed class RDCoreServer(IHexIdeHost host, PlatformSource platform, IU
             return;
         }
 
-        var channel = new ConnectionChannel();
-        var client = new RDCorePlatformClient(channel);
-        // Answered from the start, as the handshake says the add-in expects it.
-        client.OnListSettingValue(new SettingsLists(() => connection).ApplyAsync);
-        var commands = new ClientCommands(() => connection);
         try
         {
+            var channel = new ConnectionChannel();
+            var client = new RDCorePlatformClient(channel);
+            // Answered from the start, as the handshake says the add-in expects it.
+            client.OnListSettingValue(new SettingsLists(() => connection).ApplyAsync);
+            var commands = new ClientCommands(() => connection);
             connection = host.RegisterLanguageServer(new AddinLanguageServer(Entry(launch))
             {
                 BeforeLaunch = token => BeforeLaunchAsync(choice, token),
@@ -120,6 +120,12 @@ internal sealed class RDCoreServer(IHexIdeHost host, PlatformSource platform, IU
             // The entry was refused, or another server has the id: HexIDE's Language Servers window says which too.
             ReleaseLease();
             await prompts.TellAsync(Strings.ServerNotRegistered(ex.Message));
+        }
+        catch (Exception ex)
+        {
+            // Anything else is the add-in's own failure, such as an assembly its package doesn't carry: HexIDE was never asked.
+            ReleaseLease();
+            await prompts.TellAsync(Strings.ServerNotSetUp(Failures.Describe(ex)));
         }
     }
 

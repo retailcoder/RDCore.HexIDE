@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Reflection;
 using RDCore.HexIDE.Resources;
 using RDCore.SDK.Platform;
 
@@ -25,6 +26,7 @@ internal static class Failures
     /// <summary>The reason <paramref name="failure"/> gives, to follow a colon: it ends with a period.</summary>
     public static string Reason(Exception failure) => failure switch
     {
+        _ when MissingAssembly(failure) is { } assembly => Strings.AddinIncomplete(assembly),
         HttpRequestException { StatusCode: { } status } => Strings.HttpStatus((int)status),
         HttpRequestException { HttpRequestError: HttpRequestError.SecureConnectionError } => Strings.SecureConnectionFailed,
         HttpRequestException => Strings.NoConnection,
@@ -40,6 +42,7 @@ internal static class Failures
     /// </summary>
     public static string Unusable(Exception failure) => failure switch
     {
+        _ when MissingAssembly(failure) is not null => Reason(failure),
         DirectoryNotFoundException => Strings.FolderMissing,
         FileNotFoundException missing when string.Equals(Path.GetFileName(missing.FileName), PlatformManifest.FileName, StringComparison.OrdinalIgnoreCase)
             => Strings.NoManifest,
@@ -50,6 +53,29 @@ internal static class Failures
 
     /// <summary>Traces <paramref name="failure"/> whole, when the user is told a reason <see cref="Describe"/> didn't give.</summary>
     public static void Record(Exception failure) => Trace.TraceWarning($"RDCore for HexIDE: {failure}");
+
+    // An assembly the add-in's package doesn't carry: its loader names it as the file, with its version, and a type that needed
+    // it to initialise fails with it.
+    private static string? MissingAssembly(Exception failure) => failure switch
+    {
+        TypeInitializationException { InnerException: { } inner } => MissingAssembly(inner),
+        FileNotFoundException { FileName: { } file } => AssemblyNamed(file),
+        FileLoadException { FileName: { } file } => AssemblyNamed(file),
+        _ => null,
+    };
+
+    private static string? AssemblyNamed(string file)
+    {
+        try
+        {
+            return new AssemblyName(file) is { Version: not null, Name: { } name } ? name : null;
+        }
+        catch (Exception ex) when (ex is FileLoadException or ArgumentException)
+        {
+            // A file's path, which isn't an assembly's name.
+            return null;
+        }
+    }
 
     private static bool IsDiskFull(int hresult) => OperatingSystem.IsWindows()
         ? hresult == FromWin32(DiskFull) || hresult == FromWin32(HandleDiskFull)

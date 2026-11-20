@@ -83,6 +83,9 @@ Télécharger RDCore {0} maintenant? Le téléchargement fait environ {1}, provi
   <data name="ServerNotRegistered" xml:space="preserve">
     <value>HexIDE n'a pas accepté le serveur de langage de RDCore : {0}</value>
   </data>
+  <data name="ServerNotSetUp" xml:space="preserve">
+    <value>Le serveur de langage de RDCore n'a pas pu être mis en place dans HexIDE : {0}</value>
+  </data>
   <data name="CommandArgumentsUnreadable" xml:space="preserve">
     <value>RDCore a envoyé {0} avec des arguments que cette commande ne prend pas.</value>
   </data>
@@ -124,6 +127,9 @@ Télécharger RDCore {0} maintenant? Le téléchargement fait environ {1}, provi
   </data>
   <data name="UnexpectedFailure" xml:space="preserve">
     <value>un imprévu est survenu ({0}).</value>
+  </data>
+  <data name="AddinIncomplete" xml:space="preserve">
+    <value>il manque {0} à l'add-in. Réinstallez l'add-in.</value>
   </data>
   <data name="FolderMissing" xml:space="preserve">
     <value>le dossier n'existe pas.</value>
