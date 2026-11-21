@@ -2,7 +2,7 @@
 
   <PropertyGroup>
     <!-- the single version source for every project; a release tag must equal v<VersionPrefix>[-suffix], the suffix passed as -p:VersionSuffix. -->
-    <VersionPrefix>0.1.0</VersionPrefix>
+    <VersionPrefix>0.2.1</VersionPrefix>
     <!-- an alpha until said otherwise: the installer's default channel follows the add-in's own build, preview for a prerelease. -->
     <VersionSuffix Condition="'$(VersionSuffix)' == ''">alpha</VersionSuffix>
   </PropertyGroup>
