@@ -26,6 +26,7 @@ internal sealed class ConnectionChannel : IRDCorePlatformChannel
         RDCorePlatformProtocol.SessionInputBox,
         RDCorePlatformProtocol.RubberduckIndenterSettings,
         RDCorePlatformProtocol.RubberduckIndenterSettingsApply,
+        RDCorePlatformProtocol.ListSettingValue,
     ];
 
     private readonly ConcurrentDictionary<string, Func<JsonElement?, CancellationToken, Task<JsonElement?>>> handlers = new();

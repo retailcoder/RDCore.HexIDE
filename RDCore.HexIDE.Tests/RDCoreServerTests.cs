@@ -1,6 +1,7 @@
 using System.Globalization;
 using System.Text.Json;
 using HexIDE.Addins;
+using HexIDE.Lsp;
 using NSubstitute;
 using RDCore.HexIDE.Platform;
 using RDCore.HexIDE.Resources;
@@ -9,6 +10,7 @@ using RDCore.PlatformInstaller;
 using RDCore.PlatformInstaller.Tests;
 using RDCore.SDK.Client;
 using RDCore.SDK.Platform;
+using RDCore.SDK.Semantics.Refactoring;
 
 namespace RDCore.HexIDE.Tests;
 
@@ -84,7 +86,8 @@ public sealed class RDCoreServerTests : IDisposable
             $"a pipe name the platform makes, short enough for a macOS socket path: {entry.PipeName}");
         CollectionAssert.AreEqual(
             new[] { "--pipe-name", "{pipe}", "--workspace", "{workspaceUri}", "--client-process-id", "{pid}" }, entry.Arguments!.List);
-        CollectionAssert.AreEquivalent(new[] { ".bas", ".cls", ".frm", ".doccls" }, entry.Extensions);
+        // RD-VBA's modules, the code of an RDForms form among them, and VB6's designed modules.
+        CollectionAssert.AreEquivalent(new[] { ".bas", ".cls", ".frm", ".doccls", ".rdform", ".ctl", ".pag", ".dob" }, entry.Extensions);
         Assert.AreEqual(RDCoreServer.BeforeLaunchTimeout, registered.BeforeLaunchTimeout);
         Assert.AreEqual("rdcore/", registered.MessagePrefix);
         CollectionAssert.AreEquivalent(
@@ -92,9 +95,44 @@ public sealed class RDCoreServerTests : IDisposable
             {
                 RDCorePlatformProtocol.SessionMessageBox, RDCorePlatformProtocol.SessionInputBox,
                 RDCorePlatformProtocol.RubberduckIndenterSettings, RDCorePlatformProtocol.RubberduckIndenterSettingsApply,
+                RDCorePlatformProtocol.ListSettingValue,
             },
             registered.ServerMethods.Keys.ToArray(), "every server-to-client method RDCore's protocol has");
+        Assert.AreEqual("rdcore.", registered.CommandPrefix);
+        CollectionAssert.AreEquivalent(new[] { RefactoringCommands.Rename, RefactoringCommands.ShowReferences },
+            registered.ClientCommands.Keys.ToArray(), "the client-side commands RDCore's code actions and code lenses send");
         Assert.AreSame(connection, server.Connection);
+    }
+
+    [TestMethod]
+    public async Task The_server_shares_VB6_modules_with_HexIDE_s_bundled_VB6_server_and_ranks_above_it()
+    {
+        using var server = Server(BuiltPlatform());
+
+        await server.ProjectLoadedAsync(ProjectFile());
+
+        var entry = registered!.Entry;
+        // HexIDE offers a document to every server that claims its extension.
+        CollectionAssert.AreEquivalent(new[] { ".bas", ".cls", ".frm", ".ctl", ".pag", ".dob" },
+            entry.Extensions!.Intersect(DocumentLanguage.Vb6Extensions, StringComparer.OrdinalIgnoreCase).ToArray(),
+            "the modules both servers are offered: a Designer (.dsr) isn't a module, and stays the bundled server's alone");
+        Assert.IsTrue(DocumentLanguage.EstablishesVb6(entry.Extensions!, entry.LanguageId),
+            "HexIDE offers a project's class modules only to a server that serves VB6");
+        Assert.IsTrue(entry.Priority > LanguageServerRegistration.BundledPriority,
+            "where HexIDE takes one server's answer (hover, definition, rename, formatting), it takes RDCore's");
+    }
+
+    [TestMethod]
+    public async Task A_claimed_command_runs_on_the_connection_HexIDE_gave_the_registration()
+    {
+        using var server = Server(BuiltPlatform());
+        await server.ProjectLoadedAsync(ProjectFile());
+        connection.StartRenameAsync(default!, default!, default).ReturnsForAnyArgs(true);
+        var arguments = JsonDocument.Parse("""["file:///C:/Ledger/Module1.bas", { "line": 4, "character": 12 }]""").RootElement.EnumerateArray().ToArray();
+
+        await registered!.ClientCommands[RefactoringCommands.Rename](arguments, TestContext.CancellationToken);
+
+        await connection.Received(1).StartRenameAsync("file:///C:/Ledger/Module1.bas", new global::HexIDE.Lsp.Messages.Position(4, 12), Arg.Any<CancellationToken>());
     }
 
     [TestMethod]
@@ -135,6 +173,50 @@ public sealed class RDCoreServerTests : IDisposable
 
         await connection.Received(1).RequestAsync(RDCorePlatformProtocol.PlatformInitialize, Arg.Any<JsonElement?>(),
             Timeout.InfiniteTimeSpan, Arg.Any<CancellationToken>());
+    }
+
+    // A code action that disables a diagnostic asks the add-in to list it, which it writes in the server's settings in HexIDE.
+    [TestMethod]
+    public async Task The_add_in_says_it_lists_a_setting_s_value_and_writes_the_server_s_settings_when_asked()
+    {
+        using var server = Server(BuiltPlatform());
+        await server.ProjectLoadedAsync(ProjectFile());
+        JsonElement? hello = null;
+        connection.RequestAsync(RDCorePlatformProtocol.PlatformInitialize, Arg.Do<JsonElement?>(sent => hello = sent?.Clone()), default, default)
+            .ReturnsForAnyArgs(JsonDocument.Parse("{}").RootElement);
+        JsonElement? stored = null;
+        connection.SetSettingsAsync(Arg.Do<JsonElement>(settings => stored = settings.Clone()), Arg.Any<CancellationToken>()).Returns(Task.CompletedTask);
+
+        await registered!.AfterStart!(connection, TestContext.CancellationToken);
+        var answer = await registered.ServerMethods[RDCorePlatformProtocol.ListSettingValue](
+            JsonDocument.Parse("""{ "key": "Analysis.DisabledDiagnostics", "value": "RDC01001", "scope": 0 }""").RootElement, TestContext.CancellationToken);
+
+        Assert.IsTrue(Property(hello!.Value, "listSettingValue") is { } capability && Property(capability, "isSupported")?.GetBoolean() == true,
+            hello.Value.GetRawText());
+        Assert.IsTrue(Property(answer!.Value, "applied")?.GetBoolean());
+        Assert.AreEqual("""{"rdcore":{"Analysis":{"DisabledDiagnostics":["RDC01001"]}}}""", stored?.GetRawText());
+    }
+
+    // The property of that name anywhere in the element, compared without regard to case.
+    private static JsonElement? Property(JsonElement element, string name)
+    {
+        if (element.ValueKind == JsonValueKind.Object)
+        {
+            foreach (var property in element.EnumerateObject())
+            {
+                if (string.Equals(property.Name, name, StringComparison.OrdinalIgnoreCase))
+                {
+                    return property.Value;
+                }
+
+                if (Property(property.Value, name) is { } found)
+                {
+                    return found;
+                }
+            }
+        }
+
+        return element.ValueKind == JsonValueKind.Array ? element.EnumerateArray().Select(item => Property(item, name)).FirstOrDefault(found => found is not null) : null;
     }
 
     [TestMethod]
@@ -299,6 +381,37 @@ public sealed class RDCoreServerTests : IDisposable
         Assert.AreEqual(Strings.ServerNotRegistered("the id is taken"), prompts.Told.Single());
         Assert.IsNull(server.Connection);
     }
+
+    [TestMethod]
+    public async Task An_assembly_missing_from_the_add_in_is_reported_to_the_user_by_name()
+    {
+        host.RegisterLanguageServer(Arg.Any<AddinLanguageServer>()).Returns(_ => throw MissingAssembly());
+        using var server = Server(BuiltPlatform());
+
+        await server.ProjectLoadedAsync(ProjectFile());
+
+        Assert.AreEqual(Strings.ServerNotSetUp(Strings.AddinIncomplete("OmniSharp.Extensions.LanguageProtocol")), prompts.Told.Single());
+        Assert.IsNull(server.Connection);
+    }
+
+    // Only Windows keeps a file that is open from being deleted, which is how this sees the lease.
+    [TestMethod]
+    [OSCondition(OperatingSystems.Windows)]
+    public async Task A_server_the_add_in_fails_to_set_up_holds_no_installed_version()
+    {
+        prompts.Answer = true;
+        host.RegisterLanguageServer(Arg.Any<AddinLanguageServer>()).Returns(_ => throw MissingAssembly());
+        using var server = Server(github: new FakeGitHub().Release("v0.1.0"));
+
+        await server.ProjectLoadedAsync(ProjectFile());
+
+        File.Delete(Path.Combine(folder, "installed", "versions", "0.1.0", "rdcore.json"));
+    }
+
+    // What .NET throws where a type that needs an assembly the package doesn't carry first initializes.
+    private static TypeInitializationException MissingAssembly() => new("RDCore.SDK.Workspace.SupportedLanguages", new FileNotFoundException(
+        "Could not load file or assembly 'OmniSharp.Extensions.LanguageProtocol, Version=0.19.0.0, Culture=neutral, PublicKeyToken=null'.",
+        "OmniSharp.Extensions.LanguageProtocol, Version=0.19.0.0, Culture=neutral, PublicKeyToken=null"));
 
     // Only Windows keeps a file that is open from being deleted, which is how this sees the lease.
     [TestMethod]

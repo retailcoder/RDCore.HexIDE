@@ -66,6 +66,16 @@ internal static class Strings
     /// <summary>{0}: why.</summary>
     public static string ServerNotRegistered(string reason) => Format(nameof(ServerNotRegistered), reason);
 
+    /// <summary>{0}: why.</summary>
+    public static string ServerNotSetUp(string reason) => Format(nameof(ServerNotSetUp), reason);
+
+    /// <summary>{0}: the command.</summary>
+    public static string CommandArgumentsUnreadable(string command) => Format(nameof(CommandArgumentsUnreadable), command);
+
+    public static string RenameNotStarted => Get(nameof(RenameNotStarted));
+
+    public static string ServerNotConnected => Get(nameof(ServerNotConnected));
+
     public static string ProjectTypeTitle => Get(nameof(ProjectTypeTitle));
 
     /// <summary>{0}: the project file.</summary>
@@ -92,6 +102,9 @@ internal static class Strings
 
     /// <summary>{0}: the exception's type name, for a report.</summary>
     public static string UnexpectedFailure(string type) => Format(nameof(UnexpectedFailure), type);
+
+    /// <summary>{0}: the assembly's name.</summary>
+    public static string AddinIncomplete(string assembly) => Format(nameof(AddinIncomplete), assembly);
 
     public static string FolderMissing => Get(nameof(FolderMissing));
 

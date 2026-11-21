@@ -33,4 +33,25 @@ public sealed class FailuresTests
         Assert.AreEqual(Strings.SecureConnectionFailed,
             Failures.Reason(new HttpRequestException(HttpRequestError.SecureConnectionError, "The SSL connection could not be established.")));
     }
+
+    [TestMethod]
+    public void An_assembly_that_can_t_be_loaded_is_told_by_its_name_as_one_the_add_in_is_missing_wherever_it_was_needed()
+    {
+        const string assembly = "MediatR, Version=8.0.0.0, Culture=neutral, PublicKeyToken=bb9a41a5e8aaa7e2";
+        var missing = new FileNotFoundException($"Could not load file or assembly '{assembly}'.", assembly);
+
+        var told = Strings.AddinIncomplete("MediatR");
+
+        Assert.AreEqual(told, Failures.Reason(missing));
+        Assert.AreEqual(told, Failures.Reason(new TypeInitializationException("RDCore.SDK.Workspace.SupportedLanguages", missing)));
+        Assert.AreEqual(told, Failures.Unusable(new FileLoadException($"Could not load file or assembly '{assembly}'.", assembly)));
+    }
+
+    [TestMethod]
+    public void A_missing_file_that_isn_t_an_assembly_is_told_as_a_file_problem()
+    {
+        var missing = new FileNotFoundException("Could not find file.", Path.Combine(Path.GetTempPath(), "rdcore.json.part"));
+
+        Assert.AreEqual(Strings.FileProblem, Failures.Reason(missing));
+    }
 }

@@ -4,13 +4,15 @@ using RDCore.HexIDE.Platform;
 using RDCore.HexIDE.Resources;
 using RDCore.SDK.Client;
 using RDCore.SDK.Platform;
+using RDCore.SDK.Workspace;
 
 namespace RDCore.HexIDE.Server;
 
 /// <summary>
 /// RDCore's language server in HexIDE, registered only while an RDCore project (<c>.rdproj</c>) is open: when the first one
 /// opens, and taken out when the last one closes. HexIDE's own client keeps the connection; the add-in says hello on it
-/// (<c>rdcore/platform/initialize</c>) after each start.
+/// (<c>rdcore/platform/initialize</c>) after each start, and runs the commands RDCore's code actions and code lenses send for the
+/// client to run itself (<see cref="ClientCommands"/>).
 /// </summary>
 /// <remarks>
 /// HexIDE fixes a server's launch when it is registered, so the platform it runs from is found, or installed with the user's
@@ -25,7 +27,7 @@ internal sealed class RDCoreServer(IHexIdeHost host, PlatformSource platform, IU
     /// <summary>A start that has to deploy the platform again may download it whole, which takes a while on a slow link.</summary>
     public static readonly TimeSpan BeforeLaunchTimeout = TimeSpan.FromMinutes(15);
 
-    private readonly HashSet<string> openProjects = new(OperatingSystem.IsWindows() ? StringComparer.OrdinalIgnoreCase : StringComparer.Ordinal);
+    private readonly HashSet<string> openProjects = new(WorkspacePaths.Comparer);
     private readonly object leasing = new();
     private CancellationTokenSource? registering;
     private IAddinServerConnection? connection;
@@ -37,7 +39,7 @@ internal sealed class RDCoreServer(IHexIdeHost host, PlatformSource platform, IU
 
     /// <summary>Whether <paramref name="projectPath"/> is an RDCore project's file.</summary>
     public static bool IsRDCoreProject(string projectPath) =>
-        string.Equals(Path.GetFileName(projectPath), ".rdproj", StringComparison.OrdinalIgnoreCase);
+        string.Equals(Path.GetFileName(projectPath), ProjectFile.FileName, StringComparison.OrdinalIgnoreCase);
 
     /// <summary>A project opened: the first RDCore project registers the server.</summary>
     public Task ProjectLoadedAsync(string projectPath)
@@ -90,10 +92,13 @@ internal sealed class RDCoreServer(IHexIdeHost host, PlatformSource platform, IU
             return;
         }
 
-        var channel = new ConnectionChannel();
-        var client = new RDCorePlatformClient(channel);
         try
         {
+            var channel = new ConnectionChannel();
+            var client = new RDCorePlatformClient(channel);
+            // Answered from the start, as the handshake says the add-in expects it.
+            client.OnListSettingValue(new SettingsLists(() => connection).ApplyAsync);
+            var commands = new ClientCommands(() => connection);
             connection = host.RegisterLanguageServer(new AddinLanguageServer(Entry(launch))
             {
                 BeforeLaunch = token => BeforeLaunchAsync(choice, token),
@@ -102,10 +107,12 @@ internal sealed class RDCoreServer(IHexIdeHost host, PlatformSource platform, IU
                 {
                     channel.Connect(current);
                     await client.InitializeAsync(CoreServerComponent.LanguageServer,
-                        new CorePlatformClientCapabilities { LanguageServer = new() }, token);
+                        new CorePlatformClientCapabilities { LanguageServer = new() { ListSettingValue = new(IsSupported: true) } }, token);
                 },
                 MessagePrefix = "rdcore/",
                 ServerMethods = channel.ServerMethods,
+                CommandPrefix = ClientCommands.Prefix,
+                ClientCommands = commands.Handlers,
             });
         }
         catch (Exception ex) when (ex is ArgumentException or InvalidOperationException)
@@ -113,6 +120,12 @@ internal sealed class RDCoreServer(IHexIdeHost host, PlatformSource platform, IU
             // The entry was refused, or another server has the id: HexIDE's Language Servers window says which too.
             ReleaseLease();
             await prompts.TellAsync(Strings.ServerNotRegistered(ex.Message));
+        }
+        catch (Exception ex)
+        {
+            // Anything else is the add-in's own failure, such as an assembly its package doesn't carry: HexIDE was never asked.
+            ReleaseLease();
+            await prompts.TellAsync(Strings.ServerNotSetUp(Failures.Describe(ex)));
         }
     }
 
@@ -146,6 +159,22 @@ internal sealed class RDCoreServer(IHexIdeHost host, PlatformSource platform, IU
     }
 
     /// <summary>
+    /// The extensions of the documents HexIDE gives the server: the modules of an RD-VBA project and of a VB6 one, as the platform
+    /// lists them (<see cref="SupportedLanguages.RDVBA"/>, <see cref="SupportedLanguages.VB6"/>, <see cref="SupportedLanguage.ModuleFileTypes"/>).
+    /// </summary>
+    /// <remarks>
+    /// HexIDE offers a document to every server that claims its extension, its bundled VB6 server among them, and the claims of
+    /// <c>.bas</c> and <c>.frm</c> make it read this entry as one that serves VB6, so a project's class modules reach it too. The
+    /// entry's priority puts the server ahead of the bundled one where HexIDE takes one server's answer.
+    /// </remarks>
+    internal static string[] ModuleExtensions =>
+        [.. new[] { SupportedLanguages.RDVBA, SupportedLanguages.VB6 }
+            .SelectMany(language => language.ModuleFileTypes)
+            .Select(pattern => Path.GetExtension(pattern))
+            .Where(extension => !string.IsNullOrEmpty(extension))
+            .Distinct(StringComparer.OrdinalIgnoreCase)];
+
+    /// <summary>
     /// The entry HexIDE launches the server from. The pipe, HexIDE's process and the workspace are HexIDE's to fill in at each
     /// start, so the workspace the server is told is the one HexIDE's client names in <c>initialize</c>.
     /// </summary>
@@ -153,7 +182,7 @@ internal sealed class RDCoreServer(IHexIdeHost host, PlatformSource platform, IU
     {
         Id = Id,
         DisplayName = "RDCore",
-        Extensions = [".bas", ".cls", ".frm", ".doccls"],
+        Extensions = ModuleExtensions,
         LanguageId = "vba",
         Transport = "pipe",
         PipeName = launch.PipeName,

@@ -9,13 +9,13 @@
 
 This repository holds **RDCore for HexIDE**, the add-in that brings the [RDCore](https://github.com/rubberduck-vba/RDCore) platform into the [HexIDE](https://github.com/hexide-io/HexIDE) IDE, under **⚖️GPLv3 or later**:
 
-- **RDCore.HexIDE**: the add-in. It registers RDCore's language server with HexIDE while an RDCore project (`.rdproj`) is open, opens `.rdproj` projects, and offers RDCore's debugger to F5. It talks to the platform through RDCore.SDK.Protocol, an assembly of the [RDCore.SDK](https://www.nuget.org/packages/RDCore.SDK) package, over HexIDE's own language-server connection.
+- **RDCore.HexIDE**: the add-in. It registers RDCore's language server with HexIDE while an RDCore project (`.rdproj`) is open, opens `.rdproj` projects, offers RDCore's debugger to F5, and runs two client-side commands of RDCore's code actions and code lenses: a Rename action starts HexIDE's rename, and a references lens shows the references it counts in Find References. The server serves the modules of RD-VBA and VB6 projects: `.bas`, `.cls`, `.frm`, `.doccls`, `.rdform`, `.ctl`, `.pag` and `.dob`. HexIDE also gives the VB6 ones to its own VB6 language server, and takes RDCore's answer where it takes one server's. The add-in talks to the platform through RDCore.SDK.Protocol, an assembly of the [RDCore.SDK](https://www.nuget.org/packages/RDCore.SDK) package, over HexIDE's own language-server connection.
 - **RDCore.PlatformInstaller**: gets the RDCore platform onto the machine. With your consent it downloads the platform from RDCore's GitHub releases, checks it and deploys it, and keeps it up to date. It has no dependency on HexIDE, and will become part of RDCore's own installer.
 
 The platform itself, the RD-VBA runtime included, lives in the [RDCore](https://github.com/rubberduck-vba/RDCore) repository and runs as separate processes. What you build with RDCore is yours (see [RDCore's NOTICE](https://github.com/rubberduck-vba/RDCore/blob/main/NOTICE.md)).
 
 ## 📊 Project Status
-RDCore is in active **pre-alpha** development, and this add-in with it. It runs on HexIDE v0.5.0 and later versions, which have the add-in seams it builds on.
+RDCore is in active **pre-alpha** development, and this add-in with it. It runs on HexIDE built from its main branch at batch 377 or later, which has the add-in seams it builds on. No HexIDE release has them; the first will be the release after v0.6.2.
 
 **Contributions**  
 
@@ -59,7 +59,7 @@ dotnet test RDCore.HexIDE.slnx
 
 `Get-Dependencies.ps1` fetches the sources the add-in builds against, at the versions `tools/dependencies.json` pins, into `deps/`: HexIDE's add-in contract (`HexIDE.Core`). The RDCore.SDK package comes from nuget.org.
 
-`pwsh tools/Pack-Addin.ps1` lays the add-in out as a HexIDE add-in package in `artifacts/addins/rdcore/`: copy that folder into the `addins` folder beside HexIDE's executable. A package you pack yourself is unsigned, so HexIDE loads it only in developer mode with unsigned add-ins allowed. The package's logo is the duck, `assets/ducky.png`: HexIDE shows it on the add-in's options page once the package is signed, and its own placeholder for an unsigned package.
+`pwsh tools/Pack-Addin.ps1` lays the add-in out as a HexIDE add-in package in `artifacts/addins/rdcore/`: copy that folder into the `addins` folder beside HexIDE's executable. The package carries every assembly the add-in runs with, except the ones HexIDE shares with its add-ins (HexIDE.Core, Avalonia, StreamJsonRpc and what they depend on). Packing fails when an assembly the add-in needs is not in the package, among HexIDE's or in .NET, or is older than the version the add-in was built against. A package you pack yourself is unsigned, so HexIDE loads it only in developer mode with unsigned add-ins allowed. The package's logo is the duck, `assets/ducky.png`: HexIDE shows it on the add-in's options page once the package is signed, and its own placeholder for an unsigned package.
 
 ### Development settings
 
@@ -73,7 +73,7 @@ Two settings are for working on RDCore and on the add-in. The add-in reads them 
 ```
 
 - `platformRoot` runs the platform at that folder, such as a build's `artifacts/rdcore-dev`, instead of an installed one. Nothing is downloaded while it is set, and it wins over `developmentFeed`. A development build has no `release.json` and runs as it is; a folder with one, as a release's platform has, runs while it suits the add-in.
-- `developmentFeed` downloads releases from a folder instead of GitHub, to try the question, the download and the installation before a release is published. `pwsh tools/New-DevelopmentFeed.ps1 -Platform <a built platform> -Version 0.1.0-dev.1 -Destination <folder> -SdkVersion 0.1.4-alpha` writes one: `-SdkVersion` names the RDCore.SDK version a development build was built with, where a platform with a `release.json` names its own. The download is checked as a published release's is: the hosts, https, and its checksum. The add-in offers a release of the feed only when its platform was built with an RDCore.SDK compatible with the add-in's own, as it does for a published release.
+- `developmentFeed` downloads releases from a folder instead of GitHub, to try the question, the download and the installation before a release is published. `pwsh tools/New-DevelopmentFeed.ps1 -Platform <a built platform> -Version 0.1.0-dev.1 -Destination <folder> -SdkVersion 0.1.12-alpha` writes one: `-SdkVersion` names the RDCore.SDK version a development build was built with, where a platform with a `release.json` names its own. The download is checked as a published release's is: the hosts, https, and its checksum. The add-in offers a release of the feed only when its platform was built with an RDCore.SDK compatible with the add-in's own, as it does for a published release.
 
 ## Licence
 RDCore.HexIDE is licensed under the GNU General Public License, version 3 or any later version: see [LICENSE-GPLv3.md](LICENSE-GPLv3.md). The licence file reproduces the official text, in English. A French version of the licence is available on request.
