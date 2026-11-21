@@ -2,6 +2,7 @@ using System.Security.Cryptography;
 using System.Text.Json;
 using HexIDE.Addins;
 using RDCore.SDK.Workspace;
+using RDCore.SDK.Workspace.Forms;
 
 namespace RDCore.HexIDE.Projects;
 
@@ -98,9 +99,24 @@ internal sealed record RDProject(string Name, IReadOnlyList<RDProjectMember> Mem
     internal static AddinMemberKind KindOf(DocClassType? super, string? source) => ProjectModuleKinds.Of(super, source) switch
     {
         ProjectModuleKind.Document => AddinMemberKind.DocumentModule,
-        ProjectModuleKind.Class => AddinMemberKind.ClassModule,
+        ProjectModuleKind.Class => DesignerKindOf(source) ?? AddinMemberKind.ClassModule,
         _ => AddinMemberKind.StandardModule,
     };
+
+    // A Visual Basic 6.0 designer's module, by the class its designer block names, read as the platform reads a form. A VBA UserForm, another
+    // designer and a designer block that cannot be read are code modules: HexIDE has no MSForms designer, and a designer file kept as a code
+    // module is one it does not save faithfully (UnfaithfulSaveCause.DesignerFileAsModule).
+    private static AddinMemberKind? DesignerKindOf(string? source) =>
+        FormDesigner.Read(source, default, out _) is { Kind: FormDesignerKind.VisualBasic6, Class: { Library: var library, Name: var name } }
+            && string.Equals(library, "VB", StringComparison.OrdinalIgnoreCase)
+            ? name?.ToUpperInvariant() switch
+            {
+                "FORM" or "MDIFORM" => AddinMemberKind.Form,
+                "USERCONTROL" => AddinMemberKind.UserControl,
+                "PROPERTYPAGE" => AddinMemberKind.PropertyPage,
+                _ => null,
+            }
+            : null;
 
     // Decoded as the environment host and the language server decode a module, so its kind is the one they find.
     private static (string? Source, string? Digest) ReadMember(string path)
