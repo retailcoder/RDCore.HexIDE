@@ -104,7 +104,7 @@ internal sealed record RDProject(string Name, IReadOnlyList<RDProjectMember> Mem
     };
 
     // A Visual Basic 6.0 designer's module, by the class its designer block names, read as the platform reads a form. A VBA UserForm, another
-    // designer and a designer block that can't be read are code modules: HexIDE has no MSForms designer, and opens a designer file read-only.
+    // designer and a designer block that cannot be read are code modules: HexIDE has no MSForms designer, and opens a designer file read-only.
     private static AddinMemberKind? DesignerKindOf(string? source) =>
         FormDesigner.Read(source, default, out _) is { Kind: FormDesignerKind.VisualBasic6, Class: { Library: var library, Name: var name } }
             && string.Equals(library, "VB", StringComparison.OrdinalIgnoreCase)

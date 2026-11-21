@@ -84,7 +84,7 @@ public sealed class RDProjectTests : IDisposable
     }
 
     // A Visual Basic 6.0 designer's module is the form, UserControl or PropertyPage its designer block names. A VBA UserForm, another designer, and a
-    // designer block that isn't whole stay code modules, which HexIDE opens read-only.
+    // designer block that is not whole stay code modules, which HexIDE opens read-only.
     [TestMethod]
     [DataRow("VERSION 5.00\r\nBegin VB.Form Main\r\n   Caption = \"Main\"\r\nEnd\r\nAttribute VB_Name = \"Main\"\r\n", AddinMemberKind.Form)]
     [DataRow("VERSION 5.00\r\nBegin VB.MDIForm Shell\r\nEnd\r\nAttribute VB_Name = \"Shell\"\r\n", AddinMemberKind.Form)]
