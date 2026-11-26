@@ -20,7 +20,7 @@
     "platformRoot" out: that wins, and nothing is downloaded while it is set.
 
 .EXAMPLE
-    tools/New-DevelopmentFeed.ps1 -Platform ..\RDCore\artifacts\rdcore-dev -Version 0.1.0-dev.1 -Destination C:\Temp\feed -SdkVersion 0.1.12-alpha
+    tools/New-DevelopmentFeed.ps1 -Platform ..\RDCore\artifacts\rdcore-dev -Version 0.1.0-dev.1 -Destination C:\Temp\feed -SdkVersion 0.2.1-alpha
 #>
 [CmdletBinding()]
 param(
