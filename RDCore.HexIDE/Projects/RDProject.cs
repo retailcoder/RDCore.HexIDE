@@ -103,9 +103,9 @@ internal sealed record RDProject(string Name, IReadOnlyList<RDProjectMember> Mem
     };
 
     // A Visual Basic 6.0 designer's module, by the class its designer line names, read as the platform reads a module's header. A VBA
-    // UserForm, another designer, a designer line that cannot be read and a designer block that is never closed are code modules, as they
-    // are to the platform: HexIDE has no MSForms designer, and a designer file kept as a code module is one it does not save faithfully
-    // (UnfaithfulSaveCause.DesignerFileAsModule).
+    // UserForm, another designer, a designer line that cannot be read and a designer block that is never closed, from which the platform
+    // reads no designer either, are code modules: HexIDE has no MSForms designer, and a designer file kept as a code module is one it does
+    // not save faithfully (UnfaithfulSaveCause.DesignerFileAsModule).
     private static AddinMemberKind? DesignerKindOf(string? source) =>
         ModuleHeader.DesignerOf(source) is { EndLine: not null, Class: { ClassId: null, Library: var library, Name: var name } }
             && string.Equals(library, "VB", StringComparison.OrdinalIgnoreCase)

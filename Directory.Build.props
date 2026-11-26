@@ -35,7 +35,7 @@
   </PropertyGroup>
 
   <!-- the version of the RDCore.SDK.Protocols package from nuget.org: the platform's protocol, which the add-in talks to the platform
-       through. It moves in step with RDCore.SDK's version, which a platform's manifest names. -->
+       through. A platform's manifest names the RDCore.SDK it was built with, which the add-in compares with this version. -->
   <PropertyGroup>
     <RDCoreSdkVersion>0.2.1-alpha</RDCoreSdkVersion>
   </PropertyGroup>

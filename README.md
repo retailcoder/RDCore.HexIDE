@@ -33,7 +33,7 @@ When an RDCore project opens, or a run starts, the add-in looks for RDCore's pla
 3. An `rdc` on your PATH outside that folder, as an unpacked release archive leaves one. The add-in asks whether to use it, to install RDCore instead, or to locate another one.
 4. Otherwise, the newest release, downloaded from RDCore's GitHub releases once you agree, or an RDCore you locate instead.
 
-An RDCore found on your PATH, or one you locate, is used only when it was built for your machine, with an RDCore.SDK compatible with the add-in's RDCore.SDK.Protocols, whose version moves in step with RDCore.SDK's, as its `release.json` says: the same major and minor versions before 1.0, and the same major version from 1.0. An RDCore you chose is checked again at each start: when it no longer suits the add-in, the add-in says so and looks for another.
+An RDCore found on your PATH, or one you locate, is used only when it was built for your machine, with an RDCore.SDK compatible with the add-in's RDCore.SDK.Protocols, as its `release.json` says: the same major and minor versions before 1.0, and the same major version from 1.0. An RDCore you chose is checked again at each start: when it no longer suits the add-in, the add-in says so and looks for another.
 
 The add-in installs RDCore in that folder, and puts its `rdc` command on your PATH. It doesn't update an RDCore you chose: using one saves its folder as your `platformRoot` setting. Nothing is installed while an RDCore already on the machine is in use, so there is never a second copy of it.
 
