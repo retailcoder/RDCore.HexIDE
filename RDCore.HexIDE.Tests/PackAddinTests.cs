@@ -96,13 +96,18 @@ public sealed class PackAddinTests : IDisposable
         await Pack();
 
         var files = PackageFiles().ToHashSet(StringComparer.OrdinalIgnoreCase);
-        // The SDK's protocol and what it runs on: without them, the add-in registers no server.
-        foreach (var carried in new[] { "RDCore.HexIDE.dll", "RDCore.SDK.dll", "RDCore.SDK.Protocol.dll", "RDCore.PlatformInstaller.dll",
-            "OmniSharp.Extensions.LanguageProtocol.dll", "OmniSharp.Extensions.JsonRpc.dll", "MediatR.dll", "System.Reactive.dll" })
+        // The platform's protocol and its installer: without them, the add-in registers no server.
+        foreach (var carried in new[] { "RDCore.HexIDE.dll", "RDCore.SDK.Protocols.dll", "RDCore.PlatformInstaller.dll" })
         {
             Assert.Contains(carried, files);
         }
-        // HexIDE's contract, Avalonia, and StreamJsonRpc with what it pulls in, which OmniSharp needs too: HexIDE's own are loaded.
+        // The SDK and its language-server stack are the platform's: the protocol needs none of them.
+        foreach (var platforms in new[] { "RDCore.SDK.dll", "RDCore.SDK.Protocol.dll", "OmniSharp.Extensions.LanguageProtocol.dll",
+            "OmniSharp.Extensions.JsonRpc.dll", "MediatR.dll", "System.Reactive.dll" })
+        {
+            Assert.DoesNotContain(platforms, files);
+        }
+        // HexIDE's contract, Avalonia, and StreamJsonRpc with what it pulls in: HexIDE's own are loaded.
         foreach (var shared in new[]
             { "HexIDE.Core.dll", "Avalonia.Base.dll", "StreamJsonRpc.dll", "Nerdbank.Streams.dll", "Newtonsoft.Json.dll" })
         {
@@ -113,12 +118,12 @@ public sealed class PackAddinTests : IDisposable
     [TestMethod]
     public async Task An_assembly_the_add_in_needs_that_is_in_neither_the_package_nor_HexIDE_fails_the_pack_by_name()
     {
-        File.Delete(Path.Combine(PublishedAddin(), "MediatR.dll"));
+        File.Delete(Path.Combine(PublishedAddin(), "RDCore.SDK.Protocols.dll"));
 
         var (exitCode, output) = await RunPack();
 
         Assert.AreNotEqual(0, exitCode, output);
-        Assert.Contains("RDCore.SDK needs MediatR", output);
+        Assert.Contains("RDCore.HexIDE needs RDCore.SDK.Protocols", output);
         Assert.IsFalse(Directory.Exists(Package), "nothing is packed");
     }
 

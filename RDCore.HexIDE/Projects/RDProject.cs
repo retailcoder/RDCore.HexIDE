@@ -2,7 +2,6 @@ using System.Security.Cryptography;
 using System.Text.Json;
 using HexIDE.Addins;
 using RDCore.SDK.Workspace;
-using RDCore.SDK.Workspace.Forms;
 
 namespace RDCore.HexIDE.Projects;
 
@@ -103,11 +102,12 @@ internal sealed record RDProject(string Name, IReadOnlyList<RDProjectMember> Mem
         _ => AddinMemberKind.StandardModule,
     };
 
-    // A Visual Basic 6.0 designer's module, by the class its designer block names, read as the platform reads a form. A VBA UserForm, another
-    // designer and a designer block that cannot be read are code modules: HexIDE has no MSForms designer, and a designer file kept as a code
-    // module is one it does not save faithfully (UnfaithfulSaveCause.DesignerFileAsModule).
+    // A Visual Basic 6.0 designer's module, by the class its designer line names, read as the platform reads a module's header. A VBA
+    // UserForm, another designer, a designer line that cannot be read and a designer block that is never closed are code modules, as they
+    // are to the platform: HexIDE has no MSForms designer, and a designer file kept as a code module is one it does not save faithfully
+    // (UnfaithfulSaveCause.DesignerFileAsModule).
     private static AddinMemberKind? DesignerKindOf(string? source) =>
-        FormDesigner.Read(source, default, out _) is { Kind: FormDesignerKind.VisualBasic6, Class: { Library: var library, Name: var name } }
+        ModuleHeader.DesignerOf(source) is { EndLine: not null, Class: { ClassId: null, Library: var library, Name: var name } }
             && string.Equals(library, "VB", StringComparison.OrdinalIgnoreCase)
             ? name?.ToUpperInvariant() switch
             {
