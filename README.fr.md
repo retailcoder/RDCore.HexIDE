@@ -33,7 +33,7 @@ Quand un projet RDCore s'ouvre, ou qu'une exécution démarre, l'add-in cherche 
 3. Une commande `rdc` dans votre PATH, hors de ce dossier, comme en laisse une archive de publication décompressée. L'add-in demande s'il faut l'utiliser, installer RDCore à la place, ou en localiser un autre.
 4. Sinon, la publication la plus récente, téléchargée depuis les publications GitHub de RDCore une fois que vous l'acceptez, ou un RDCore que vous localisez à la place.
 
-Un RDCore trouvé dans votre PATH, ou que vous localisez, n'est utilisé que s'il a été bâti pour votre poste, avec un RDCore.SDK compatible avec le RDCore.SDK.Protocols de l'add-in, dont la version suit celle de RDCore.SDK, comme le dit son `release.json` : les mêmes versions majeure et mineure avant 1.0, et la même version majeure à partir de 1.0. Un RDCore que vous avez choisi est vérifié de nouveau à chaque démarrage : s'il ne convient plus à l'add-in, l'add-in le dit et en cherche un autre.
+Un RDCore trouvé dans votre PATH, ou que vous localisez, n'est utilisé que s'il a été bâti pour votre poste, avec un RDCore.SDK compatible avec le RDCore.SDK.Protocols de l'add-in, comme le dit son `release.json` : les mêmes versions majeure et mineure avant 1.0, et la même version majeure à partir de 1.0. Un RDCore que vous avez choisi est vérifié de nouveau à chaque démarrage : s'il ne convient plus à l'add-in, l'add-in le dit et en cherche un autre.
 
 L'add-in installe RDCore dans ce dossier, et ajoute sa commande `rdc` à votre PATH. Il ne met pas à jour un RDCore que vous avez choisi : l'utiliser enregistre son dossier comme votre réglage `platformRoot`. Rien n'est installé tant qu'un RDCore déjà sur le poste est en usage : il n'y en a donc jamais une deuxième copie.
 
