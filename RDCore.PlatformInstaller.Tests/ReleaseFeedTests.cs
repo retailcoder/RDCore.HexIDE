@@ -41,7 +41,7 @@ public class ReleaseFeedTests
     [TestMethod]
     public async Task A_release_whose_release_json_says_no_RDCore_SDK_is_not_offered()
     {
-        var github = new FakeGitHub().Release("v0.1.0").Release("v0.1.1", sdk: null);
+        var github = new FakeGitHub().Release("v0.1.0").Release("v0.1.1", sdk: FakeGitHub.NoSdk);
 
         Assert.AreEqual("0.1.0", (await Feed(github, sdk: FakeGitHub.Sdk).FindLatestAsync(TestContext.CancellationToken))?.Version.Text);
     }
