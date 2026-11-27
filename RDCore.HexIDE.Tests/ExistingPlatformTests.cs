@@ -41,7 +41,7 @@ public sealed class ExistingPlatformTests : IDisposable
 
     // An RDCore as an unpacked release archive leaves one: its rdc in RDCore.CLI, and a release.json naming the RDCore.SDK it
     // was built with, unless it has none.
-    private string Unpacked(string where, string? sdk = FakeGitHub.Sdk, bool releaseInfo = true, string? rid = null)
+    private string Unpacked(string where, string? sdk = null, bool releaseInfo = true, string? rid = null)
     {
         var root = Path.Combine(folder, where);
         Directory.CreateDirectory(Path.Combine(root, "RDCore.LanguageServer"));
@@ -53,7 +53,7 @@ public sealed class ExistingPlatformTests : IDisposable
         File.WriteAllText(Path.Combine(root, "RDCore.CLI", Rdc), "");
         if (releaseInfo)
         {
-            File.WriteAllText(Path.Combine(root, "release.json"), FakeGitHub.ReleaseInfo(sdk));
+            File.WriteAllText(Path.Combine(root, "release.json"), FakeGitHub.ReleaseInfo(sdk ?? FakeGitHub.Sdk));
         }
         return root;
     }
@@ -128,7 +128,7 @@ public sealed class ExistingPlatformTests : IDisposable
         var unpacked = unsuited switch
         {
             "incompatible" => Unpacked("archive", sdk: IncompatibleSdk),
-            "no sdk" => Unpacked("archive", sdk: null),
+            "no sdk" => Unpacked("archive", sdk: FakeGitHub.NoSdk),
             "no release.json" => Unpacked("archive", releaseInfo: false),
             _ => Unpacked("archive", rid: "plan9-x64"),
         };
