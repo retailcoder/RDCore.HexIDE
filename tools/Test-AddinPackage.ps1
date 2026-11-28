@@ -12,7 +12,7 @@
       key signs addin.json;
     - every file addin.json lists has the SHA-256 it lists, and the package holds no file but those, the manifest, its
       signature and the record's.
-    It prints the publisher key's fingerprint, which the README publishes.
+    It prints the root key's fingerprint, and the publisher key's, which the README publishes.
 #>
 [CmdletBinding()]
 param(

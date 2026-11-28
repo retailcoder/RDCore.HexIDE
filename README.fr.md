@@ -47,7 +47,7 @@ L'add-in publié est signé avec la clé d'éditeur de RDCore. HexIDE affiche l'
 
 Un paquet dont l'empreinte est autre n'a pas été signé par RDCore : ne l'installez pas.
 
-Le paquet de chaque publication est signé par le workflow de publication du dépôt (`.github/workflows/release.yml`) au moment où la publication reçoit son étiquette : personne ne met une publication en paquet ni ne la signe à la main, et la clé d'éditeur ne se trouve ni dans le dépôt ni dans le paquet.
+Le paquet de chaque publication est signé par le workflow de publication du dépôt (`.github/workflows/release.yml`) au moment où la publication reçoit son étiquette : personne n'empaquette ni ne signe une publication à la main, et la clé d'éditeur ne se trouve ni dans le dépôt ni dans le paquet.
 
 ## Bâtir
 
