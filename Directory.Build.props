@@ -2,7 +2,7 @@
 
   <PropertyGroup>
     <!-- the single version source for every project; a release tag must equal v<VersionPrefix>[-suffix], the suffix passed as -p:VersionSuffix. -->
-    <VersionPrefix>0.2.1</VersionPrefix>
+    <VersionPrefix>0.2.2</VersionPrefix>
     <!-- an alpha until said otherwise: the installer's default channel follows the add-in's own build, preview for a prerelease. -->
     <VersionSuffix Condition="'$(VersionSuffix)' == ''">alpha</VersionSuffix>
   </PropertyGroup>
@@ -34,9 +34,10 @@
     <EnforceCodeStyleInBuild>true</EnforceCodeStyleInBuild>
   </PropertyGroup>
 
-  <!-- the version of the RDCore.SDK package from nuget.org: the add-in talks to the platform through its RDCore.SDK.Protocol assembly. -->
+  <!-- the version of the RDCore.SDK.Protocols package from nuget.org: the platform's protocol, which the add-in talks to the platform
+       through. A platform's manifest names the RDCore.SDK it was built with, which the add-in compares with this version. -->
   <PropertyGroup>
-    <RDCoreSdkVersion>0.1.16-alpha</RDCoreSdkVersion>
+    <RDCoreSdkVersion>0.2.1-alpha</RDCoreSdkVersion>
   </PropertyGroup>
 
   <!-- the sources the add-in builds against until they are packages. tools/Get-Dependencies.ps1 fetches them into deps/, at the

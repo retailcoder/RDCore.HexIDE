@@ -4,6 +4,7 @@ using System.Net;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
+using RDCore.SDK;
 
 namespace RDCore.PlatformInstaller.Tests;
 
@@ -37,15 +38,15 @@ internal sealed class FakeGitHub : HttpMessageHandler
     /// <param name="tarGz">Whether its archive is a tar.gz, as a Linux or macOS release's is, rather than a zip.</param>
     /// <param name="archive">The archive's bytes, when they aren't those of <paramref name="entries"/>.</param>
     /// <param name="sdk">
-    /// The RDCore.SDK version its <c>rdcore-&lt;version&gt;-&lt;rid&gt;.release.json</c> says the platform was built with, or
-    /// null for a <c>release.json</c> without an <c>sdk</c>.
+    /// The RDCore.SDK version its <c>rdcore-&lt;version&gt;-&lt;rid&gt;.release.json</c> says the platform was built with: null for
+    /// <see cref="Sdk"/>, <see cref="NoSdk"/> for a <c>release.json</c> without an <c>sdk</c>.
     /// </param>
     /// <param name="releaseInfo">Whether the release has its <c>release.json</c> beside its archive.</param>
     /// <param name="releaseInfoDigest">The digest SHA256SUMS lists for the <c>release.json</c>, when it isn't its own.</param>
     public FakeGitHub Release(string tag, bool prerelease = false, bool draft = false, string rid = "win-x64",
         IReadOnlyDictionary<string, string>? entries = null, string? digest = null, long? listedSize = null,
         string host = "github.com", bool binaryMarker = false, bool tarGz = false, byte[]? archive = null,
-        string? sdk = Sdk, bool releaseInfo = true, string? releaseInfoDigest = null)
+        string? sdk = null, bool releaseInfo = true, string? releaseInfoDigest = null)
     {
         var version = tag.TrimStart('v');
         var download = $"https://{host}/rubberduck-vba/RDCore/releases/download/{tag}";
@@ -55,7 +56,7 @@ internal sealed class FakeGitHub : HttpMessageHandler
         var sumsUrl = $"{download}/SHA256SUMS";
         var infoName = $"rdcore-{version}-{rid}.release.json";
         var infoUrl = $"{download}/{infoName}";
-        var info = Encoding.UTF8.GetBytes(ReleaseInfo(sdk));
+        var info = Encoding.UTF8.GetBytes(ReleaseInfo(sdk ?? Sdk));
         files[zipUrl] = zip;
         files[infoUrl] = info;
         files[sumsUrl] = Encoding.UTF8.GetBytes(
@@ -75,14 +76,20 @@ internal sealed class FakeGitHub : HttpMessageHandler
         return this;
     }
 
-    /// <summary>The RDCore.SDK version a release's platform is built with unless a test says otherwise.</summary>
-    public const string Sdk = "0.1.1-alpha";
+    /// <summary>
+    /// The RDCore.SDK version a release's platform is built with unless a test says otherwise: the one the tests build against, so
+    /// that a platform is compatible with the add-in whatever SDK it is on.
+    /// </summary>
+    public static string Sdk => RDCoreSdk.Version.Text;
+
+    /// <summary>The RDCore.SDK version of a <c>release.json</c> that names none.</summary>
+    public const string NoSdk = "";
 
     /// <summary>
     /// A release's <c>release.json</c>, as RDCore's release workflow writes one, saying the platform was built with RDCore.SDK
-    /// <paramref name="sdk"/>; one without an <c>sdk</c> for null.
+    /// <paramref name="sdk"/>; one without an <c>sdk</c> for <see cref="NoSdk"/>.
     /// </summary>
-    public static string ReleaseInfo(string? sdk) => sdk is null
+    public static string ReleaseInfo(string sdk) => sdk.Length == 0
         ? """{ "schema": 1, "runtime": { "name": "Microsoft.NETCore.App", "minimumVersion": "10.0.0" } }"""
         : $$"""{ "schema": 1, "runtime": { "name": "Microsoft.NETCore.App", "minimumVersion": "10.0.0" }, "sdk": { "package": "RDCore.SDK", "version": "{{sdk}}" } }""";
 
