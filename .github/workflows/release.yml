@@ -1,8 +1,9 @@
 name: Release
 
 # A v* tag releases the add-in: built and tested at the tag, packed and signed with RDCore's publisher key by HexIDE's packer,
-# checked as HexIDE checks it, and attached to a draft release with its SHA-256. Every value of the package comes from the
-# repository (tools/Pack-Addin.ps1 says where each is read), so nobody types one.
+# checked as HexIDE checks it, and attached with its SHA-256 to the tag's release: the one made with its notes on the Releases
+# page, which made the tag, or else a draft this run creates. Every value of the package comes from the repository
+# (tools/Pack-Addin.ps1 says where each is read), so nobody types one.
 on:
  push:
   tags: [ 'v*' ]
@@ -124,7 +125,50 @@ jobs:
       [IO.File]::WriteAllText("$zip.sha256", "$hash  $env:PACKAGE.zip`n")
       Write-Host "$env:PACKAGE.zip SHA-256: $hash"
 
+   # A tag has one release. One made on the Releases page with its notes, which makes the tag, is the one this run fills: the
+   # package is uploaded to it, and its title and notes stay as they are. A tag pushed without one gets a draft. `gh release
+   # create` checks for nothing, and GitHub accepts a second release for the same tag, so anything else stops here: a release
+   # that already has assets, or more than one release. The listing includes drafts because this token can push.
+   - name: Find the tag's release
+     id: release
+     shell: pwsh
+     env:
+      GH_TOKEN: ${{ github.token }}
+     run: |
+      $tag = $env:GITHUB_REF_NAME
+      $releases = @(gh api "repos/$env:GITHUB_REPOSITORY/releases?per_page=100" --paginate `
+              --jq '.[] | select(.tag_name == env.GITHUB_REF_NAME) | {id, draft, prerelease, assets: (.assets | length)} | tojson' |
+          ForEach-Object { $_ | ConvertFrom-Json })
+      if ($LASTEXITCODE -ne 0) { throw "The releases of $env:GITHUB_REPOSITORY couldn't be listed." }
+      if ($releases.Count -eq 0) {
+          Write-Host "$tag has no release yet: this run drafts one."
+          "id=" >> $env:GITHUB_OUTPUT
+          exit 0
+      }
+      $kind = { param($release) if ($release.draft) { 'draft' } else { 'published' } }
+      if ($releases.Count -gt 1) {
+          $found = ($releases | ForEach-Object { "$(& $kind $_) release $($_.id) with $($_.assets) asset(s)" }) -join ', '
+          Write-Host ("::error::$($releases.Count) releases for $tag exist: $found. Keep the one whose notes you want and delete the " +
+              "others, keeping the tag: 'gh api -X DELETE repos/$env:GITHUB_REPOSITORY/releases/<id>' for each other id. Then re-run this job.")
+          exit 1
+      }
+      $existing = $releases[0]
+      if ($existing.assets -gt 0) {
+          Write-Host ("::error::$tag's $(& $kind $existing) release ($($existing.id)) already has $($existing.assets) asset(s). If they are " +
+              "this version's, there is nothing to re-run. Otherwise delete them, keeping the release and its notes: 'gh release " +
+              "delete-asset $tag <asset> -R $env:GITHUB_REPOSITORY --yes' for each asset 'gh release view $tag -R $env:GITHUB_REPOSITORY' " +
+              "lists. Then re-run this job.")
+          exit 1
+      }
+      if ($env:VERSION.Contains('-') -and -not $existing.prerelease) {
+          Write-Host "::warning::$tag's release isn't marked as a pre-release, and $env:VERSION is one."
+      }
+      Write-Host ("$tag has a $(& $kind $existing) release with no assets ($($existing.id)): this run uploads the package to it, " +
+          'and leaves its title and notes as they are.')
+      "id=$($existing.id)" >> $env:GITHUB_OUTPUT
+
    - name: Draft the release
+     if: steps.release.outputs.id == ''
      shell: pwsh
      env:
       GH_TOKEN: ${{ github.token }}
@@ -135,4 +179,15 @@ jobs:
       gh release create $env:GITHUB_REF_NAME (Join-Path $release "$env:PACKAGE.zip") (Join-Path $release "$env:PACKAGE.zip.sha256") `
           --repo $env:GITHUB_REPOSITORY --verify-tag --draft --title "RDCore for HexIDE $env:VERSION" `
           --notes "RDCore for HexIDE $env:VERSION, signed by the release workflow with RDCore's publisher key." $prerelease
+      if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+   - name: Upload to the tag's release
+     if: steps.release.outputs.id != ''
+     shell: pwsh
+     env:
+      GH_TOKEN: ${{ github.token }}
+     run: |
+      $release = Join-Path $env:RUNNER_TEMP 'release'
+      gh release upload $env:GITHUB_REF_NAME (Join-Path $release "$env:PACKAGE.zip") (Join-Path $release "$env:PACKAGE.zip.sha256") `
+          --repo $env:GITHUB_REPOSITORY
       if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
