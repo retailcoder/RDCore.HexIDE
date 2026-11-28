@@ -49,6 +49,8 @@ Un paquet dont l'empreinte est autre n'a pas été signé par RDCore : ne l'inst
 
 Le paquet de chaque publication est signé par le workflow de publication du dépôt (`.github/workflows/release.yml`) au moment où la publication reçoit son étiquette : personne n'empaquette ni ne signe une publication à la main, et la clé d'éditeur ne se trouve ni dans le dépôt ni dans le paquet.
 
+Les deux façons de publier fonctionnent. Poussez l'étiquette `v*`, et le workflow joint le paquet à une publication brouillon qu'il crée, qu'un mainteneur publie ensuite. Ou créez la publication avec ses notes dans la page **Releases** et publiez-la, ce qui crée l'étiquette, et le workflow joint le paquet à cette publication, sans toucher à son titre ni à ses notes.
+
 ## Bâtir
 
 À partir de la racine du dépôt, avec le SDK .NET 11 et PowerShell 7 :

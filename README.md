@@ -49,6 +49,8 @@ A package with any other fingerprint was not signed by RDCore: do not install it
 
 Each release's package is signed by the repository's release workflow (`.github/workflows/release.yml`) when the release is tagged: nobody packs or signs a release by hand, and the publisher key is in neither the repository nor the package.
 
+Either way of releasing works. Push the `v*` tag, and the workflow attaches the package to a draft release it creates, which a maintainer then publishes. Or create the release with its notes on the **Releases** page and publish it, which makes the tag, and the workflow attaches the package to that release, leaving its title and notes as they are.
+
 ## Building
 
 From the repository root, with the .NET 11 SDK and PowerShell 7:
