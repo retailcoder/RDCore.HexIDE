@@ -4,9 +4,15 @@
     Builds the add-in and lays it out as a HexIDE add-in package: artifacts/addins/rdcore/, with its addin.json.
 
 .DESCRIPTION
-    The package is unsigned: HexIDE loads it only in developer mode with "load unsigned add-ins" on, until HexIDE issues
-    RDCore's publisher record and the package is signed with HexIDE's packer. Its manifest lists every file with its SHA-256,
-    which HexIDE needs even then: an add-in's own assemblies load only from the files its manifest lists.
+    Without -Packer and -Key the package is unsigned: HexIDE loads it only in developer mode with "load unsigned add-ins" on.
+    With them, HexIDE's packer signs it with RDCore's publisher key, under the publisher record in trust/: that is how the
+    release workflow packs a release, and nobody packs one by hand. Either way the manifest lists every file with its
+    SHA-256, since an add-in's own assemblies load only from the files its manifest lists.
+
+    Every value of the manifest comes from the repository, the same for both: the id is RDCoreServer.Id, read from the built
+    add-in; the publisher id is the publisher record's (trust/publisher.json); the version is the add-in's ProductVersion;
+    the lowest HexIDE it runs on is the version of the HexIDE.Core it builds against, as its restore resolved it; the title,
+    description, author, logo and capabilities are set below, once.
 
     The package carries every assembly the add-in runs with, except the ones HexIDE shares with its add-ins: an assembly the
     package doesn't carry resolves to HexIDE's own. HexIDE's are HexIDE.Core's and those of the packages the add-in takes no
@@ -28,16 +34,33 @@ param(
     # is not built.
     [string] $Published,
     # The add-in's restore, which says which packages are HexIDE's: the project's own, unless the add-in was restored elsewhere.
-    [string] $Assets = (Join-Path $PSScriptRoot '..' 'RDCore.HexIDE' 'obj' 'project.assets.json')
+    [string] $Assets = (Join-Path $PSScriptRoot '..' 'RDCore.HexIDE' 'obj' 'project.assets.json'),
+    # The publisher record the package is signed under: publisher.json/.sig, intermediate.json/.sig and hexide-root.pub.
+    [string] $Trust = (Join-Path $PSScriptRoot '..' 'trust'),
+    # HexIDE's packer (HexIDE.AddinPacker.dll, built from hexide-io/HexIDE), to sign the package with; -Key comes with it.
+    [string] $Packer,
+    # The file holding the publisher key, base64 PKCS#8, as the packer reads it; never a file in the repository or the package.
+    [string] $Key
 )
 
 $ErrorActionPreference = 'Stop'
+Import-Module (Join-Path $PSScriptRoot 'AddinPackage.psm1') -Force
 $repository = Resolve-Path (Join-Path $PSScriptRoot '..')
 $project = Join-Path $repository 'RDCore.HexIDE' 'RDCore.HexIDE.csproj'
 $logo = Join-Path $repository 'assets' 'ducky.png'
 $logoPath = 'ducky.png'
 # The add-in contract: HexIDE loads its own copy.
 $contract = 'HexIDE.Core'
+
+# What the manifest says of the add-in, written nowhere else.
+$title = 'RDCore for HexIDE'
+$description = "RDCore's language server and runtime for RDCore projects (.rdproj)."
+$author = '9562-7303 Québec inc.'
+$entry = 'RDCore.HexIDE.dll'
+$capabilities = @('languageServer.contribute')
+
+$signs = [bool]$Packer
+if ($signs -ne [bool]$Key) { throw 'A signed pack takes both -Packer and -Key; an unsigned one takes neither.' }
 
 # The assembly a file holds, with the assemblies it references; null for a file that isn't a .NET assembly (a native library).
 function Read-PackAssembly([string] $path) {
@@ -71,7 +94,12 @@ function Get-PackHexIdeAssemblies([string] $assetsPath) {
     $restore = Get-Content $assetsPath -Raw | ConvertFrom-Json -AsHashtable
     $framework = @($restore.project.frameworks.Keys)[0]
     $graph = @{}
-    foreach ($key in $restore.targets[$framework].Keys) { $graph[$key.Split('/')[0]] = $restore.targets[$framework][$key] }
+    $versions = @{}
+    foreach ($library in $restore.targets[$framework].Keys) {
+        $name, $version = $library.Split('/')
+        $graph[$name] = $restore.targets[$framework][$library]
+        $versions[$name] = $version
+    }
     if (-not $graph.ContainsKey($contract)) { throw "The restore in $assetsPath has no $contract reference." }
 
     # A package the add-in takes no runtime assets of is HexIDE's: its include lists the assets the add-in takes.
@@ -95,7 +123,7 @@ function Get-PackHexIdeAssemblies([string] $assetsPath) {
         }
         foreach ($dependency in @($library.dependencies.Keys)) { if ($dependency) { $pending.Enqueue($dependency) } }
     }
-    [pscustomobject]@{ Framework = $framework; Assemblies = $assemblies }
+    [pscustomobject]@{ Framework = $framework; Assemblies = $assemblies; ContractVersion = $versions[$contract] }
 }
 
 # The assemblies, by name, of the .NET shared framework the add-in targets, with their versions: none of them ships.
@@ -166,39 +194,62 @@ try {
         throw "The add-in can't be packed: an assembly it needs isn't there."
     }
 
+    # A signed package is laid out apart, for the packer to copy from: it writes its output only to a folder of its own.
+    $layout = if ($signs) { Join-Path ([IO.Path]::GetTempPath()) ("rdcore-addin-layout-" + [guid]::NewGuid().ToString('N')) } else { $Destination }
     if (Test-Path $Destination) { Remove-Item $Destination -Recurse -Force }
-    New-Item -ItemType Directory -Force $Destination | Out-Null
+    New-Item -ItemType Directory -Force $layout | Out-Null
     foreach ($file in $shipped) {
-        $target = Join-Path $Destination ([IO.Path]::GetRelativePath($Published, $file.FullName))
+        $target = Join-Path $layout ([IO.Path]::GetRelativePath($Published, $file.FullName))
         New-Item -ItemType Directory -Force (Split-Path $target) | Out-Null
         Copy-Item $file.FullName $target
     }
-    Copy-Item $logo (Join-Path $Destination $logoPath)
+    Copy-Item $logo (Join-Path $layout $logoPath)
 
-    $assembly = Join-Path $Destination 'RDCore.HexIDE.dll'
+    $assembly = Join-Path $layout $entry
+    $id = Get-PackAddinId $assembly
     $version = [Diagnostics.FileVersionInfo]::GetVersionInfo($assembly).ProductVersion.Split('+')[0]
-    $files = Get-ChildItem $Destination -Recurse -File | Sort-Object FullName | ForEach-Object {
+    # HexIDE compares its own version with this one as a System.Version, so a HexIDE.Core version it can't read stops the pack.
+    $minimum = $hexIde.ContractVersion
+    if (-not ($minimum -as [version])) { throw "The add-in builds against $contract $minimum, which isn't a version HexIDE can compare with its own." }
+    $files = Get-ChildItem $layout -Recurse -File | Sort-Object FullName | ForEach-Object {
         [ordered]@{
-            path   = [IO.Path]::GetRelativePath($Destination, $_.FullName).Replace('\', '/')
+            path   = [IO.Path]::GetRelativePath($layout, $_.FullName).Replace('\', '/')
             sha256 = (Get-FileHash $_.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
         }
     }
-    $manifest = [ordered]@{
-        schema       = 2
-        id           = 'rdcore'
-        title        = 'RDCore for HexIDE'
-        description  = "RDCore's language server and runtime for RDCore projects (.rdproj)."
-        version      = $version
-        author       = '9562-7303 Québec inc.'
-        publisherId  = 'rubberduck-vba'
-        entry        = 'RDCore.HexIDE.dll'
-        capabilities = @('languageServer.contribute')
-        logoPath     = $logoPath
-        files        = @($files)
+
+    if ($signs) {
+        # The packer writes addin.json from these values, takes the publisher id from the record, and signs it.
+        $arguments = @('pack', '--src', $layout, '--out', $Destination, '--trust', $Trust, '--key', $Key,
+            '--id', $id, '--title', $title, '--description', $description, '--author', $author, '--version', $version,
+            '--entry', $entry, '--logo', $logoPath, '--min-hexide-version', $minimum)
+        foreach ($capability in $capabilities) { $arguments += '--capability', $capability }
+        foreach ($file in $files) { if ($file.path -notin $entry, $logoPath) { $arguments += '--include', $file.path } }
+        New-Item -ItemType Directory -Force (Split-Path $Destination) | Out-Null
+        if ([IO.Path]::GetExtension($Packer) -eq '.dll') { dotnet $Packer @arguments } else { & $Packer @arguments }
+        if ($LASTEXITCODE -ne 0) { throw "HexIDE's packer failed with exit code $LASTEXITCODE." }
+        Write-Host "RDCore for HexIDE $version is in $Destination ($($files.Count) files, signed)."
     }
-    $manifest | ConvertTo-Json -Depth 4 | Set-Content (Join-Path $Destination 'addin.json') -Encoding utf8NoBOM
-    Write-Host "RDCore for HexIDE $version is in $Destination ($($files.Count) files, unsigned)."
+    else {
+        $manifest = [ordered]@{
+            schema           = 2
+            id               = $id
+            title            = $title
+            description      = $description
+            version          = $version
+            author           = $author
+            publisherId      = Get-PackPublisherId $Trust
+            entry            = $entry
+            capabilities     = $capabilities
+            minHexideVersion = $minimum
+            logoPath         = $logoPath
+            files            = @($files)
+        }
+        $manifest | ConvertTo-Json -Depth 4 | Set-Content (Join-Path $Destination 'addin.json') -Encoding utf8NoBOM
+        Write-Host "RDCore for HexIDE $version is in $Destination ($($files.Count) files, unsigned)."
+    }
 }
 finally {
     if ($publishes) { Remove-Item $Published -Recurse -Force -ErrorAction SilentlyContinue }
+    if ($signs -and $layout) { Remove-Item $layout -Recurse -Force -ErrorAction SilentlyContinue }
 }
