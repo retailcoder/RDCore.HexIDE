@@ -47,6 +47,8 @@ The published add-in is signed with RDCore's publisher key. HexIDE shows the fin
 
 A package with any other fingerprint was not signed by RDCore: do not install it.
 
+Each release's package is signed by the repository's release workflow (`.github/workflows/release.yml`) when the release is tagged: nobody packs or signs a release by hand, and the publisher key is in neither the repository nor the package.
+
 ## Building
 
 From the repository root, with the .NET 11 SDK and PowerShell 7:
