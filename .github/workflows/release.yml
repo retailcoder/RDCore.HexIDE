@@ -79,7 +79,8 @@ jobs:
       $hexide = Join-Path $env:RUNNER_TEMP 'hexide'
       git init --quiet $hexide
       git -C $hexide remote add origin https://github.com/hexide-io/HexIDE.git
-      git -C $hexide sparse-checkout set --no-cone /global.json /NuGet.Config /Directory.Packages.props /IDE/Directory.Build.props /IDE/HexIDE.Core/ /IDE/HexIDE.AddinPacker/
+      $paths = '/global.json', '/NuGet.Config', '/Directory.Packages.props', '/IDE/Directory.Build.props', '/IDE/HexIDE.Core/', '/IDE/HexIDE.AddinPacker/'
+      git -C $hexide sparse-checkout set --no-cone @paths
       git -C $hexide fetch --quiet --depth 1 origin $env:HEXIDE_PACKER_COMMIT
       git -C $hexide checkout --quiet FETCH_HEAD
       if ((git -C $hexide rev-parse HEAD) -ne $env:HEXIDE_PACKER_COMMIT) { throw "HexIDE isn't at $env:HEXIDE_PACKER_COMMIT." }
