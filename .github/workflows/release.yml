@@ -139,9 +139,9 @@ jobs:
       $releases = @(gh api "repos/$env:GITHUB_REPOSITORY/releases?per_page=100" --paginate `
               --jq '.[] | select(.tag_name == env.GITHUB_REF_NAME) | {id, draft, prerelease, assets: (.assets | length)} | tojson' |
           ForEach-Object { $_ | ConvertFrom-Json })
-      if ($LASTEXITCODE -ne 0) { throw "The releases of $env:GITHUB_REPOSITORY couldn't be listed." }
+      if ($LASTEXITCODE -ne 0) { throw "The releases of $env:GITHUB_REPOSITORY could not be listed." }
       if ($releases.Count -eq 0) {
-          Write-Host "$tag has no release yet: this run drafts one."
+          Write-Host "$tag has no release: this run drafts one."
           "id=" >> $env:GITHUB_OUTPUT
           exit 0
       }
@@ -161,7 +161,7 @@ jobs:
           exit 1
       }
       if ($env:VERSION.Contains('-') -and -not $existing.prerelease) {
-          Write-Host "::warning::$tag's release isn't marked as a pre-release, and $env:VERSION is one."
+          Write-Host "::warning::$tag's release is not marked as a pre-release, and $env:VERSION is one."
       }
       Write-Host ("$tag has a $(& $kind $existing) release with no assets ($($existing.id)): this run uploads the package to it, " +
           'and leaves its title and notes as they are.')
