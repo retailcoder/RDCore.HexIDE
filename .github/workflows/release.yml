@@ -1,0 +1,137 @@
+name: Release
+
+# A v* tag releases the add-in: built and tested at the tag, packed and signed with RDCore's publisher key by HexIDE's packer,
+# checked as HexIDE checks it, and attached to a draft release with its SHA-256. Every value of the package comes from the
+# repository (tools/Pack-Addin.ps1 says where each is read), so nobody types one.
+on:
+ push:
+  tags: [ 'v*' ]
+
+permissions:
+ contents: read
+
+env:
+ # HexIDE's packer is built from hexide-io/HexIDE at this commit: a pull request moves it, as it moves an action's pin.
+ HEXIDE_PACKER_COMMIT: 8bfabfa855f39db558efdbd0d9f708fa0b0cec27
+
+jobs:
+ release:
+  runs-on: windows-latest
+  # The environment holds the publisher key (HEXIDE_FIRSTPARTY_KEY, base64 PKCS#8) and deploys from v* tags only.
+  environment: release
+  permissions:
+   contents: write
+
+  steps:
+   - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+     with:
+      persist-credentials: false
+      # main's history too, to check the tag is on it.
+      fetch-depth: 0
+
+   - name: Version
+     shell: pwsh
+     run: |
+      # The tag is v<VersionPrefix>[-suffix], as Directory.Build.props says; the suffix is passed to the build, the prefix is the source's.
+      if ($env:GITHUB_REF_NAME -notmatch '^v(?<version>\d+\.\d+\.\d+(-(?<suffix>[0-9A-Za-z.-]+))?)$') {
+          throw "The tag $env:GITHUB_REF_NAME isn't v<major>.<minor>.<patch>[-suffix]."
+      }
+      git merge-base --is-ancestor $env:GITHUB_SHA origin/main
+      if ($LASTEXITCODE -ne 0) { throw "The tag $env:GITHUB_REF_NAME isn't on main." }
+      "VERSION=$($Matches.version)" >> $env:GITHUB_ENV
+      "VERSION_SUFFIX=$($Matches.suffix)" >> $env:GITHUB_ENV
+      "PACKAGE=rdcore-hexide-$($Matches.version)-win-x64" >> $env:GITHUB_ENV
+
+   - name: Setup .NET
+     uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
+     with:
+      dotnet-version: 11.0
+
+   - name: Dependencies
+     shell: pwsh
+     run: ./tools/Get-Dependencies.ps1
+
+   - name: Build (Release)
+     shell: pwsh
+     run: |
+      $suffix = if ($env:VERSION_SUFFIX) { "-p:VersionSuffix=$env:VERSION_SUFFIX" }
+      dotnet build RDCore.HexIDE.slnx --configuration Release $suffix
+      if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+   - name: Test (Release)
+     run: dotnet test RDCore.HexIDE.slnx --configuration Release --no-build --verbosity normal
+
+   - name: Publish the add-in
+     shell: pwsh
+     run: |
+      $suffix = if ($env:VERSION_SUFFIX) { "-p:VersionSuffix=$env:VERSION_SUFFIX" }
+      $published = Join-Path $env:RUNNER_TEMP 'published'
+      dotnet publish RDCore.HexIDE/RDCore.HexIDE.csproj --configuration Release --no-build --output $published $suffix
+      if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      # Before the key is on the runner: the add-in built is the version the tag names.
+      $built = [Diagnostics.FileVersionInfo]::GetVersionInfo((Join-Path $published 'RDCore.HexIDE.dll')).ProductVersion.Split('+')[0]
+      if ($built -cne $env:VERSION) { throw "The add-in builds as $built; the tag $env:GITHUB_REF_NAME says $env:VERSION." }
+
+   - name: Build HexIDE's packer
+     shell: pwsh
+     run: |
+      # Outside the repository, so nothing of it can be packed, at the pinned commit, with only what the packer builds from.
+      $hexide = Join-Path $env:RUNNER_TEMP 'hexide'
+      git init --quiet $hexide
+      git -C $hexide remote add origin https://github.com/hexide-io/HexIDE.git
+      git -C $hexide sparse-checkout set --no-cone /global.json /NuGet.Config /Directory.Packages.props /IDE/Directory.Build.props /IDE/HexIDE.Core/ /IDE/HexIDE.AddinPacker/
+      git -C $hexide fetch --quiet --depth 1 origin $env:HEXIDE_PACKER_COMMIT
+      git -C $hexide checkout --quiet FETCH_HEAD
+      if ((git -C $hexide rev-parse HEAD) -ne $env:HEXIDE_PACKER_COMMIT) { throw "HexIDE isn't at $env:HEXIDE_PACKER_COMMIT." }
+      Push-Location $hexide
+      try {
+          dotnet build IDE/HexIDE.AddinPacker/HexIDE.AddinPacker.csproj --configuration Release --output (Join-Path $env:RUNNER_TEMP 'packer')
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      }
+      finally { Pop-Location }
+
+   - name: Pack (signed)
+     shell: pwsh
+     env:
+      PUBLISHER_KEY: ${{ secrets.HEXIDE_FIRSTPARTY_KEY }}
+     run: |
+      if (-not $env:PUBLISHER_KEY) { throw "The release environment has no HEXIDE_FIRSTPARTY_KEY." }
+      # The key is a file outside the repository and the package, for this step only; the next step deletes it.
+      $key = Join-Path $env:RUNNER_TEMP 'publisher.key'
+      [IO.File]::WriteAllText($key, $env:PUBLISHER_KEY)
+      ./tools/Pack-Addin.ps1 -Published (Join-Path $env:RUNNER_TEMP 'published') `
+          -Destination (Join-Path $env:RUNNER_TEMP 'release' $env:PACKAGE) `
+          -Packer (Join-Path $env:RUNNER_TEMP 'packer' 'HexIDE.AddinPacker.dll') -Key $key
+
+   - name: Delete the key
+     if: always()
+     shell: pwsh
+     run: Remove-Item (Join-Path $env:RUNNER_TEMP 'publisher.key') -Force -ErrorAction SilentlyContinue
+
+   - name: Check the package
+     shell: pwsh
+     run: ./tools/Test-AddinPackage.ps1 -Package (Join-Path $env:RUNNER_TEMP 'release' $env:PACKAGE) -Version $env:VERSION
+
+   - name: Zip
+     shell: pwsh
+     run: |
+      $release = Join-Path $env:RUNNER_TEMP 'release'
+      $zip = Join-Path $release "$env:PACKAGE.zip"
+      # The zip's top folder is the package, named as the zip.
+      Compress-Archive -Path (Join-Path $release $env:PACKAGE) -DestinationPath $zip
+      $hash = (Get-FileHash $zip -Algorithm SHA256).Hash.ToLowerInvariant()
+      [IO.File]::WriteAllText("$zip.sha256", "$hash  $env:PACKAGE.zip`n")
+      Write-Host "$env:PACKAGE.zip SHA-256: $hash"
+
+   - name: Draft the release
+     shell: pwsh
+     env:
+      GH_TOKEN: ${{ github.token }}
+     run: |
+      # A draft: its notes are the ones written and reviewed with the release, pasted in before it is published.
+      $release = Join-Path $env:RUNNER_TEMP 'release'
+      $prerelease = if ($env:VERSION.Contains('-')) { '--prerelease' }
+      gh release create $env:GITHUB_REF_NAME (Join-Path $release "$env:PACKAGE.zip") (Join-Path $release "$env:PACKAGE.zip.sha256") `
+          --repo $env:GITHUB_REPOSITORY --verify-tag --draft --title "RDCore for HexIDE $env:VERSION" `
+          --notes "RDCore for HexIDE $env:VERSION, signed by the release workflow with RDCore's publisher key." $prerelease
+      if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
