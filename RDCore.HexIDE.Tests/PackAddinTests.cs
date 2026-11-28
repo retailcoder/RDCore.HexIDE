@@ -1,6 +1,8 @@
 using System.Diagnostics;
 using System.Security.Cryptography;
 using System.Text.Json;
+using HexIDE.Addins;
+using RDCore.HexIDE.Server;
 
 namespace RDCore.HexIDE.Tests;
 
@@ -147,7 +149,7 @@ public sealed class PackAddinTests : IDisposable
         var manifest = await Pack();
 
         Assert.AreEqual(2, manifest.GetProperty("schema").GetInt32());
-        Assert.AreEqual("rdcore", manifest.GetProperty("id").GetString());
+        Assert.AreEqual(RDCoreServer.Id, manifest.GetProperty("id").GetString());
         Assert.AreEqual("RDCore for HexIDE", manifest.GetProperty("title").GetString());
         Assert.AreEqual("RDCore's language server and runtime for RDCore projects (.rdproj).", manifest.GetProperty("description").GetString());
         Assert.AreEqual("9562-7303 Québec inc.", manifest.GetProperty("author").GetString());
@@ -155,5 +157,19 @@ public sealed class PackAddinTests : IDisposable
         var inPackage = PackageFiles().Where(file => file != "addin.json").Order(StringComparer.Ordinal);
         CollectionAssert.AreEqual(inPackage.ToArray(),
             manifest.GetProperty("files").EnumerateArray().Select(file => file.GetProperty("path").GetString()).Order(StringComparer.Ordinal).ToArray());
+    }
+
+    [TestMethod]
+    public async Task The_manifest_s_publisher_is_the_publisher_record_s_and_its_lowest_HexIDE_is_the_contract_it_builds_against()
+    {
+        var manifest = await Pack();
+
+        // The record HexIDE issued, which the release workflow's packer signs under and takes the publisher id from.
+        using var record = JsonDocument.Parse(await File.ReadAllBytesAsync(Path.Combine(Repository(), "trust", "publisher.json"),
+            TestContext.CancellationToken));
+        Assert.AreEqual(record.RootElement.GetProperty("publisherId").GetString(), manifest.GetProperty("publisherId").GetString());
+        // HexIDE.Core as these tests load it, built from the commit tools/dependencies.json pins.
+        var contract = typeof(IHexIdeHost).Assembly.GetName().Version!;
+        Assert.AreEqual(contract.ToString(3), Version.Parse(manifest.GetProperty("minHexideVersion").GetString()!).ToString(3));
     }
 }
